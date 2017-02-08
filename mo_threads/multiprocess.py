@@ -60,7 +60,7 @@ class Process(object):
             Log.error("Can not call", e)
 
         if self.debug:
-            Log.note("  TO {{name}}: {{command}}", name=self.name, command=" ".join(map(strings.quote, params)))
+            Log.note("{{name}} (START): {{command}}", name=self.name, command=" ".join(map(strings.quote, params)))
 
 
     def stop(self):
@@ -74,7 +74,7 @@ class Process(object):
         for c in child_threads:
             c.join()
         if raise_on_error and self.returncode != 0:
-            Log.error("Process failed with returncode={{code}}", code=self.service.returncode)
+            Log.error("Process {{name}} failed with returncode={{code}}", name=self.name, code=self.service.returncode)
         return self
 
     def remove_child(self, child):
@@ -95,7 +95,7 @@ class Process(object):
     def _monitor(self, please_stop):
         self.service.wait()
         if self.debug:
-            Log.alert("{{name}} stopped with returncode={{returncode}}", name=self.name, returncode=self.service.returncode)
+            Log.note("{{process}} (STOP): returncode={{returncode}}", process=self.name, returncode=self.service.returncode)
         self.service_stopped.go()
         please_stop.go()
 
@@ -117,7 +117,7 @@ class Process(object):
                         max = 100
                         recieve.add(line)
                         if self.debug:
-                            Log.note("FROM {{process}}: {{line}}", process=self.name, line=line)
+                            Log.note("{{process}} ({{name}}): {{line}}", process=self.name, line=line)
                     else:
                         max -= 1
                 except Exception:
@@ -136,7 +136,7 @@ class Process(object):
 
             if line:
                 if self.debug:
-                    Log.note("TO   {{process}}: {{line}}", process=self.name, line=line.rstrip())
+                    Log.note("{{process}}  (stdin): {{line}}", process=self.name, line=line.rstrip())
                 pipe.write(line + b"\n")
         pipe.close()
 
