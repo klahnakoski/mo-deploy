@@ -142,9 +142,9 @@ def deploy_all(parent_dir, prefix, config):
             Log.alert("Process {{dir}}", dir=c.abspath)
             d = Deploy(c, kwargs=config)
             if d.deploy():
-                deployed.append(c)
+                deployed.append(d)
 
-    for dir in deployed:
+    for d in deployed:
         d.local("pip", ["pip", "install", dir.name, "--upgrade"])
     return deployed
 
