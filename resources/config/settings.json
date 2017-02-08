@@ -1,6 +1,7 @@
 {
 	"prefix": "mo-",
 	"git": "C:/Program Files/Git/cmd/git.exe",
+	"svn": "C:/Program Files/TortoiseSVN/bin/svn.exe",
 
 	"debug":{
 		"trace":true

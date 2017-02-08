@@ -18,24 +18,24 @@ from mo_json import json2value
 from mo_kwargs import override
 from mo_logs import constants, strings
 from mo_logs import startup, Log
+from mo_threads import Process
 from mo_times import Date
 from mo_times.dates import unicode2Date
-
-from mo_threads import Process
 
 
 class Deploy(object):
     @override
-    def __init__(self, directory, git, kwargs=None):
+    def __init__(self, directory, git, svn, kwargs=None):
         self.directory = directory
         self.git = git
+        self.svn = svn
 
     def deploy(self):
-
         self.svn_update()
         self.setup()
-        self.pypi()
+        success = self.pypi()
         self.update_master()
+        return success
 
     def last_deploy(self):
         setup_file = File.new_instance(self.directory, 'setup.py')
@@ -56,7 +56,7 @@ class Deploy(object):
     def pypi(self):
         if Date.today() <= self.last_deploy():
             Log.note("Can not upload to pypi")
-            return
+            return False
 
         lib_name = self.directory.name
         source_readme = File.new_instance(self.directory, 'README.md').abspath
@@ -76,14 +76,14 @@ class Deploy(object):
         process, stdout, stderr = self.local("pypi", ["C:/Python27/python.exe", "setup.py", "bdist_egg", "upload"], raise_on_error=False)
         if "Upload failed (400): File already exists." in stderr:
             Log.warning("Not uploaded")
-        elif process.returncode==0:
+        elif process.returncode == 0:
             pass
         else:
             Log.error("not expected")
         process, stdout, stderr = self.local("pypi", ["C:/Python27/python.exe", "setup.py", "sdist", "upload"], raise_on_error=False)
         if "Upload failed (400): File already exists." in stderr:
             Log.warning("Not uploaded")
-        elif process.returncode==0:
+        elif process.returncode == 0:
             pass
         else:
             Log.error("not expected")
@@ -92,6 +92,7 @@ class Deploy(object):
         File.new_instance(self.directory, "build").delete()
         File.new_instance(self.directory, "dist").delete()
         File.new_instance(self.directory, lib_name.replace("-", "_") + ".egg-info").delete()
+        return True
 
     def svn_update(self):
         source = File.new_instance(self.directory, self.directory.name.replace("-", "_")).abspath
@@ -99,13 +100,13 @@ class Deploy(object):
 
         result = self.local("git", [self.git, "checkout", "dev"])
         if File.new_instance(source, ".svn").exists:
-            result = self.local("svn", ["C:/Program Files/TortoiseSVN/bin/svn.exe", "update", "--accept", "p", source])
-            result = self.local("svn", ["C:/Program Files/TortoiseSVN/bin/svn.exe", "commit", source, "-m", "auto"])
-            result = self.local("svn", ["C:/Program Files/TortoiseSVN/bin/svn.exe", "update", "--accept", "p", tests])
-            result = self.local("svn", ["C:/Program Files/TortoiseSVN/bin/svn.exe", "commit", tests, "-m", "auto"])
+            result = self.local("svn", [self.svn, "update", "--accept", "p", source])
+            result = self.local("svn", [self.svn, "commit", source, "-m", "auto"])
+            result = self.local("svn", [self.svn, "update", "--accept", "p", tests])
+            result = self.local("svn", [self.svn, "commit", tests, "-m", "auto"])
         result = self.local("git", [self.git, "add", "-A"])
         process, stdout, stderr = self.local("git", [self.git, "commit", "-m", "updates from other projects"], raise_on_error=False)
-        if "nothing to commit, working directory clean" in stdout or process.returncode==0:
+        if "nothing to commit, working directory clean" in stdout or process.returncode == 0:
             pass
         else:
             Log.error("not expected {{result}}", result=result)
@@ -121,11 +122,19 @@ class Deploy(object):
         p = Process(cmd, args, cwd=self.directory).join(raise_on_error=raise_on_error)
         return p, list(p.stdout), list(p.stderr)
 
+
 def deploy_all(parent_dir, prefix, config):
+    deployed = []
     for c in parent_dir.children:
         if c.name.lower().startswith(prefix):
             Log.alert("Process {{dir}}", dir=c.abspath)
-            Deploy(c, kwargs=config).deploy()
+            d = Deploy(c, kwargs=config)
+            if d.deploy():
+                deployed.append(c)
+
+    for dir in deployed:
+        d.local("pip", ["pip", "install", dir.name, "--upgrade"])
+    return deployed
 
 
 def main():
@@ -143,7 +152,8 @@ def main():
                 "help": 'directory to deploy',
                 "type": str,
                 "dest": "directory",
-                "required": True
+                "required": True,
+                "default": "."
             }
         ])
         constants.set(settings.constants)
