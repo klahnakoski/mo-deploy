@@ -14,7 +14,7 @@ import re
 
 import pypandoc
 from mo_files import File
-from mo_json import json2value
+from mo_json import json2value, value2json
 from mo_kwargs import override
 from mo_logs import constants, strings
 from mo_logs import startup, Log
@@ -63,10 +63,22 @@ class Deploy(object):
         dest_readme = File.new_instance(self.directory, 'README.txt').abspath
         pypandoc.convert(source_readme, to=b'rst', outputfile=dest_readme)
         setup_file = File.new_instance(self.directory, 'setup.py')
+        req_file = File.new_instance(self.directory, 'requirements.txt')
+
+        if not setup_file.exists:
+            Log.warning("Not a PyPi project!  No setup.py file.")
 
         setup = setup_file.read()
+        # UPDATE THE VERSION NUMBER
         curr = (datetime.datetime.utcnow() + datetime.timedelta(days=1)).strftime("%y%j")
         setup = re.sub(r'(version\s*=\s*\"\d*\.\d*\.)\d*(\")', r'\g<1>%s\2' % curr, setup)
+
+        # UPDATE THE REQUIREMENTS
+        if not req_file.exists:
+            Log.error("Expecting a requirements.txt file")
+        req = req_file.read()
+        setup_req = re.findall(r'install_requires\s*=\s*\[.*\]\s*,', setup)
+        setup.replace(setup_req[0], 'install_requires='+value2json(d for d in sorted(map(strings.trim, req.split("\n"))) if d))
         setup_file.write(setup)
 
         File.new_instance(self.directory, "build").delete()
