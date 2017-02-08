@@ -1,0 +1,8 @@
+{
+	"prefix": "mo-",
+	"git": "C:/Program Files/Git/cmd/git.exe",
+
+	"debug":{
+		"trace":true
+	}
+}
