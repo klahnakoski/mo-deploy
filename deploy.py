@@ -31,9 +31,7 @@ class Deploy(object):
         self.git = git
 
     def deploy(self):
-        if Date.today() <= self.last_deploy():
-            Log.note("Can not deploy")
-            return
+
         self.svn_update()
         self.setup()
         self.pypi()
@@ -56,20 +54,20 @@ class Deploy(object):
         result = self.local("git", [self.git, "push", "origin", "dev"])
 
     def pypi(self):
+        if Date.today() <= self.last_deploy():
+            Log.note("Can not upload to pypi")
+            return
+
         lib_name = self.directory.name
-        try:
-            source_readme = File.new_instance(self.directory, 'README.md').abspath
-            dest_readme = File.new_instance(self.directory, 'README.txt').abspath
-            pypandoc.convert(source_readme, to='rst', outputfile=dest_readme)
+        source_readme = File.new_instance(self.directory, 'README.md').abspath
+        dest_readme = File.new_instance(self.directory, 'README.txt').abspath
+        pypandoc.convert(source_readme, to=b'rst', outputfile=dest_readme)
+        setup_file = File.new_instance(self.directory, 'setup.py')
 
-            setup_file = File.new_instance(self.directory, 'setup.py')
-            setup = setup_file.read()
-            curr = (datetime.datetime.utcnow() + datetime.timedelta(days=1)).strftime("%y%j")
-            setup = re.sub(r'(version\s*=\s*\"\d*\.\d*\.)\d*(\")', r'\g<1>%s\2' % curr, setup)
-            setup_file.write(setup)
-
-        except Exception, e:
-            Log.error("failure.  did you install pandoc?", cause=e)
+        setup = setup_file.read()
+        curr = (datetime.datetime.utcnow() + datetime.timedelta(days=1)).strftime("%y%j")
+        setup = re.sub(r'(version\s*=\s*\"\d*\.\d*\.)\d*(\")', r'\g<1>%s\2' % curr, setup)
+        setup_file.write(setup)
 
         File.new_instance(self.directory, "build").delete()
         File.new_instance(self.directory, "dist").delete()
@@ -100,8 +98,11 @@ class Deploy(object):
         tests = File.new_instance(self.directory, "tests").abspath
 
         result = self.local("git", [self.git, "checkout", "dev"])
-        result = self.local("svn", ["C:/Program Files/TortoiseSVN/bin/svn.exe", "update", "--accept", "p", source])
-        result = self.local("svn", ["C:/Program Files/TortoiseSVN/bin/svn.exe", "update", "--accept", "p", tests])
+        if File.new_instance(source, ".svn").exists:
+            result = self.local("svn", ["C:/Program Files/TortoiseSVN/bin/svn.exe", "update", "--accept", "p", source])
+            result = self.local("svn", ["C:/Program Files/TortoiseSVN/bin/svn.exe", "commit", source, "-m", "auto"])
+            result = self.local("svn", ["C:/Program Files/TortoiseSVN/bin/svn.exe", "update", "--accept", "p", tests])
+            result = self.local("svn", ["C:/Program Files/TortoiseSVN/bin/svn.exe", "commit", tests, "-m", "auto"])
         result = self.local("git", [self.git, "add", "-A"])
         process, stdout, stderr = self.local("git", [self.git, "commit", "-m", "updates from other projects"], raise_on_error=False)
         if "nothing to commit, working directory clean" in stdout or process.returncode==0:
