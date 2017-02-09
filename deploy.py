@@ -31,11 +31,16 @@ class Deploy(object):
         self.svn = svn
 
     def deploy(self):
-        self.svn_update()
         self.setup()
+        self.svn_update()
         success = self.pypi()
         self.update_master()
         return success
+
+    def setup(self):
+        result = self.local("git", [self.git, "checkout", "dev"])
+        result = self.local("git", [self.git, "merge", "master"])
+        result = self.local("git", [self.git, "push", "origin", "dev"])
 
     def last_deploy(self):
         setup_file = File.new_instance(self.directory, 'setup.py')
@@ -47,11 +52,6 @@ class Deploy(object):
         date = unicode2Date(version, format="%y%j")
         Log.note("PyPi last deployed {{date|datetime}}", date=date, dir=self.directory)
         return date
-
-    def setup(self):
-        result = self.local("git", [self.git, "checkout", "dev"])
-        result = self.local("git", [self.git, "merge", "master"])
-        result = self.local("git", [self.git, "push", "origin", "dev"])
 
     def pypi(self):
         if Date.today() <= self.last_deploy():
@@ -145,7 +145,7 @@ def deploy_all(parent_dir, prefix, config):
                 deployed.append(d)
 
     for d in deployed:
-        d.local("pip", ["pip", "install", dir.name, "--upgrade"])
+        d.local("pip", ["pip", "install", d.name, "--upgrade"])
     return deployed
 
 
