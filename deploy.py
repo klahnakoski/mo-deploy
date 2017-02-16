@@ -33,14 +33,16 @@ class Deploy(object):
     def deploy(self):
         self.setup()
         self.svn_update()
+        self.update_dev("updates from other projects")
         success = self.pypi()
-        self.update_master()
+        if success:
+            self.update_dev("update version number")
+            self.update_master()
         return success
 
     def setup(self):
         result = self.local("git", [self.git, "checkout", "dev"])
         result = self.local("git", [self.git, "merge", "master"])
-        result = self.local("git", [self.git, "push", "origin", "dev"])
 
     def last_deploy(self):
         setup_file = File.new_instance(self.directory, 'setup.py')
@@ -54,10 +56,7 @@ class Deploy(object):
         return date
 
     def pypi(self):
-        if Date.today() <= self.last_deploy():
-            Log.note("Can not upload to pypi")
-            return False
-
+        Log.note("Update PyPi for {{dir}}", dir=self.directory.abspath)
         lib_name = self.directory.name
         source_readme = File.new_instance(self.directory, 'README.md').abspath
         dest_readme = File.new_instance(self.directory, 'README.txt').abspath
@@ -78,23 +77,32 @@ class Deploy(object):
             Log.error("Expecting a requirements.txt file")
         req = req_file.read()
         setup_req = re.findall(r'install_requires\s*=\s*\[.*\]\s*,', setup)
-        setup.replace(setup_req[0], 'install_requires='+value2json(d for d in sorted(map(strings.trim, req.split("\n"))) if d))
-        setup_file.write(setup)
+        reqs = value2json(d for d in sorted(map(strings.trim, req.split("\n"))) if d)
+        setup.replace(setup_req[0], 'install_requires='+reqs+",")
 
+        if Date.today() <= self.last_deploy():
+            Log.note("Can not upload to pypi")
+            return False
+
+        setup_file.write(setup)
         File.new_instance(self.directory, "build").delete()
         File.new_instance(self.directory, "dist").delete()
         File.new_instance(self.directory, lib_name.replace("-", "_") + ".egg-info").delete()
 
         process, stdout, stderr = self.local("pypi", ["C:/Python27/python.exe", "setup.py", "bdist_egg", "upload"], raise_on_error=False)
         if "Upload failed (400): File already exists." in stderr:
-            Log.warning("Not uploaded")
+            Log.warning("Version exists. Not uploaded")
+        elif "error: <urlopen error [Errno 11001] getaddrinfo failed>" in stderr:
+            Log.warning("No network. Not uploaded")
         elif process.returncode == 0:
             pass
         else:
             Log.error("not expected")
         process, stdout, stderr = self.local("pypi", ["C:/Python27/python.exe", "setup.py", "sdist", "upload"], raise_on_error=False)
         if "Upload failed (400): File already exists." in stderr:
-            Log.warning("Not uploaded")
+            Log.warning("Version exists. Not uploaded")
+        elif "error: <urlopen error [Errno 11001] getaddrinfo failed>" in stderr:
+            Log.warning("No network. Not uploaded")
         elif process.returncode == 0:
             pass
         else:
@@ -107,45 +115,53 @@ class Deploy(object):
         return True
 
     def svn_update(self):
-        source = File.new_instance(self.directory, self.directory.name.replace("-", "_")).abspath
-        tests = File.new_instance(self.directory, "tests").abspath
-
         result = self.local("git", [self.git, "checkout", "dev"])
-        if File.new_instance(source, ".svn").exists:
-            result = self.local("svn", [self.svn, "update", "--accept", "p", source])
-            result = self.local("svn", [self.svn, "commit", source, "-m", "auto"])
-            result = self.local("svn", [self.svn, "update", "--accept", "p", tests])
-            result = self.local("svn", [self.svn, "commit", tests, "-m", "auto"])
+        for d in self.directory.find(r"\.svn"):
+            svn_dir = d.parent.abspath
+            Log.note("Update svn directory {{dir}}", dir=svn_dir)
+            result = self.local("svn", [self.svn, "update", "--accept", "p", svn_dir])
+            result = self.local("svn", [self.svn, "commit", svn_dir, "-m", "auto"])
+
+    def update_dev(self, message):
+        Log.note("Update git dev branch for {{dir}}", dir=self.directory.abspath)
         result = self.local("git", [self.git, "add", "-A"])
-        process, stdout, stderr = self.local("git", [self.git, "commit", "-m", "updates from other projects"], raise_on_error=False)
+        process, stdout, stderr = self.local("git", [self.git, "commit", "-m", message], raise_on_error=False)
         if "nothing to commit, working directory clean" in stdout or process.returncode == 0:
             pass
         else:
             Log.error("not expected {{result}}", result=result)
-        result = self.local("git", [self.git, "push", "origin", "dev"])
+        try:
+            self.local("git", [self.git, "push", "origin", "dev"])
+        except Exception, e:
+            Log.warning("git origin dev not updated for {{dir}}", dir=self.directory.name, cause=e)
 
     def update_master(self):
-        result = self.local("git", [self.git, "checkout", "master"])
-        result = self.local("git", [self.git, "merge", "--no-ff", "dev"])
-        result = self.local("git", [self.git, "push", "origin", "master"])
-        result = self.local("git", [self.git, "checkout", "dev"])
+        Log.note("Update git master branch for {{dir}}", dir=self.directory.abspath)
+        try:
+            result = self.local("git", [self.git, "checkout", "master"])
+            result = self.local("git", [self.git, "merge", "--no-ff", "dev"])
+            try:
+                result = self.local("git", [self.git, "push", "origin", "master"])
+            except Exception, e:
+                Log.warning("git origin master not updated for {{dir}}", dir=self.directory.name, cause=e)
+        finally:
+            result = self.local("git", [self.git, "checkout", "dev"])
 
     def local(self, cmd, args, raise_on_error=True):
         p = Process(cmd, args, cwd=self.directory).join(raise_on_error=raise_on_error)
         return p, list(p.stdout), list(p.stderr)
 
 
-def deploy_all(parent_dir, prefix, config):
+def deploy_all(config):
     deployed = []
-    for c in parent_dir.children:
-        if c.name.lower().startswith(prefix):
-            Log.alert("Process {{dir}}", dir=c.abspath)
-            d = Deploy(c, kwargs=config)
-            if d.deploy():
-                deployed.append(d)
+    for m in config.modules:
+        Log.alert("Process {{dir}}", dir=m)
+        d = Deploy(File(m), kwargs=config)
+        d.deploy()
+        deployed.append(d)
 
     for d in deployed:
-        d.local("pip", ["pip", "install", d.name, "--upgrade"])
+        d.local("pip", ["pip", "install", "--upgrade", d.directory.name])
     return deployed
 
 
@@ -172,7 +188,7 @@ def main():
         Log.start(settings.debug)
 
         if settings.args.all:
-            deploy_all(File(settings.args.directory), settings.prefix, settings)
+            deploy_all(settings)
         else:
             Deploy(File(settings.args.directory), kwargs=settings).deploy()
     except Exception, e:
