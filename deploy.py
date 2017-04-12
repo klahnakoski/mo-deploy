@@ -45,15 +45,20 @@ class Deploy(object):
         result = self.local("git", [self.git, "merge", "master"])
 
     def last_deploy(self):
-        setup_file = File.new_instance(self.directory, 'setup.py')
-        if not setup_file.exists:
-            Log.note("Not a pypi project: {{dir}}", dir=self.directory)
-            return Date.today()
-        setup = setup_file.read()
-        version = json2value(strings.between(setup, "version=", ",")).split(".")[-1]
-        date = unicode2Date(version, format="%y%j")
-        Log.note("PyPi last deployed {{date|datetime}}", date=date, dir=self.directory)
-        return date
+        try:
+            self.local("pip", ["pip", "uninstall", "-y", self.directory.name], raise_on_error=False, show_all=True)
+            self.local("pip", ["pip", "install", "--no-cache-dir", self.directory.name], show_all=True)
+            process, stdout, stderr = self.local("pip", ["pip", "show", self.directory.name], show_all=True)
+            for line in stdout:
+                if line.startswith("Version:"):
+                    version = line.split(":")[1].split(".")[-1]
+                    date = unicode2Date(version, format="%y%j")
+                    Log.note("PyPi last deployed {{date|datetime}}", date=date, dir=self.directory)
+                    return date
+            return None
+        except Exception, e:
+            Log.warning("could not get version", cause=e)
+            return None
 
     def pypi(self):
         Log.note("Update PyPi for {{dir}}", dir=self.directory.abspath)
@@ -69,7 +74,7 @@ class Deploy(object):
 
         setup = setup_file.read()
         # UPDATE THE VERSION NUMBER
-        curr = (datetime.datetime.utcnow() + datetime.timedelta(days=1)).strftime("%y%j")
+        curr = datetime.datetime.utcnow().strftime("%y%j")
         setup = re.sub(r'(version\s*=\s*\"\d*\.\d*\.)\d*(\")', r'\g<1>%s\2' % curr, setup)
 
         # UPDATE THE REQUIREMENTS
@@ -78,7 +83,7 @@ class Deploy(object):
         req = req_file.read()
         setup_req = re.findall(r'install_requires\s*=\s*\[.*\]\s*,', setup)
         reqs = value2json(d for d in sorted(map(strings.trim, req.split("\n"))) if d)
-        setup.replace(setup_req[0], 'install_requires='+reqs+",")
+        setup = setup.replace(setup_req[0], 'install_requires='+reqs+",")
 
         if Date.today() <= self.last_deploy():
             Log.note("Can not upload to pypi")
@@ -89,22 +94,25 @@ class Deploy(object):
         File.new_instance(self.directory, "dist").delete()
         File.new_instance(self.directory, lib_name.replace("-", "_") + ".egg-info").delete()
 
-        process, stdout, stderr = self.local("pypi", ["C:/Python27/python.exe", "setup.py", "bdist_egg", "upload"], raise_on_error=False)
+        Log.note("PyPi Upload for {{dir}}", dir=self.directory.abspath)
+        # process, stdout, stderr = self.local("pypi", ["C:/Python27/python.exe", "setup.py", "bdist_egg", "upload"], raise_on_error=False)
+        # if "Upload failed (400): File already exists." in stderr:
+        #     Log.warning("Version exists. Not uploaded")
+        # elif "error: <urlopen error [Errno 11001] getaddrinfo failed>" in stderr:
+        #     Log.warning("No network. Not uploaded")
+        # elif process.returncode == 0:
+        #     pass
+        # else:
+        #     Log.error("not expected")
+        process, stdout, stderr = self.local("pypi", ["C:/Python27/python.exe", "setup.py", "sdist", "upload", "-r", "pypi"], raise_on_error=False)
         if "Upload failed (400): File already exists." in stderr:
             Log.warning("Version exists. Not uploaded")
         elif "error: <urlopen error [Errno 11001] getaddrinfo failed>" in stderr:
             Log.warning("No network. Not uploaded")
         elif process.returncode == 0:
             pass
-        else:
-            Log.error("not expected")
-        process, stdout, stderr = self.local("pypi", ["C:/Python27/python.exe", "setup.py", "sdist", "upload"], raise_on_error=False)
-        if "Upload failed (400): File already exists." in stderr:
-            Log.warning("Version exists. Not uploaded")
-        elif "error: <urlopen error [Errno 11001] getaddrinfo failed>" in stderr:
-            Log.warning("No network. Not uploaded")
-        elif process.returncode == 0:
-            pass
+        elif "error: Upload failed (400): This filename has previously been used, you should use a different version." in stderr:
+            Log.warning("Exists already in pypi")
         else:
             Log.error("not expected")
 
@@ -147,9 +155,13 @@ class Deploy(object):
         finally:
             result = self.local("git", [self.git, "checkout", "dev"])
 
-    def local(self, cmd, args, raise_on_error=True):
+    def local(self, cmd, args, raise_on_error=True, show_all=False):
         p = Process(cmd, args, cwd=self.directory).join(raise_on_error=raise_on_error)
-        return p, list(p.stdout), list(p.stderr)
+        stdout = list(p.stdout)
+        stderr = list(p.stderr)
+        if show_all:
+            Log.note("stdout = {{stdout}}\nstderr = {{stderr}}", stdout=stdout, stderr=stderr)
+        return p, stdout, stderr
 
 
 def deploy_all(config):
@@ -161,6 +173,7 @@ def deploy_all(config):
         deployed.append(d)
 
     for d in deployed:
+        Log.note("pip upgrade {{module}}", module=d.directory.name)
         d.local("pip", ["pip", "install", "--upgrade", d.directory.name])
     return deployed
 
