@@ -13,6 +13,7 @@ import datetime
 import re
 
 import pypandoc
+from mo_dots import coalesce
 from mo_files import File
 from mo_json import json2value, value2json
 from mo_kwargs import override
@@ -34,8 +35,9 @@ class Deploy(object):
         self.setup()
         self.svn_update()
         self.update_dev("updates from other projects")
-        success = self.pypi()
+        success = self.pypi(force=True)
         if success:
+            pass
             self.update_dev("update version number")
             self.update_master()
         return success
@@ -47,8 +49,8 @@ class Deploy(object):
     def last_deploy(self):
         try:
             self.local("pip", ["pip", "uninstall", "-y", self.directory.name], raise_on_error=False, show_all=True)
-            self.local("pip", ["pip", "install", "--no-cache-dir", self.directory.name], show_all=True)
-            process, stdout, stderr = self.local("pip", ["pip", "show", self.directory.name], show_all=True)
+            self.local("pip", ["pip", "install", "--no-cache-dir", self.directory.name], cwd=self.directory.parent, show_all=True)
+            process, stdout, stderr = self.local("pip", ["pip", "show", self.directory.name], cwd=self.directory.parent, show_all=True)
             for line in stdout:
                 if line.startswith("Version:"):
                     version = line.split(":")[1].split(".")[-1]
@@ -56,11 +58,11 @@ class Deploy(object):
                     Log.note("PyPi last deployed {{date|datetime}}", date=date, dir=self.directory)
                     return date
             return None
-        except Exception, e:
+        except Exception as e:
             Log.warning("could not get version", cause=e)
             return None
 
-    def pypi(self):
+    def pypi(self, force=False):
         Log.note("Update PyPi for {{dir}}", dir=self.directory.abspath)
         lib_name = self.directory.name
         source_readme = File.new_instance(self.directory, 'README.md').abspath
@@ -75,18 +77,18 @@ class Deploy(object):
         setup = setup_file.read()
         # UPDATE THE VERSION NUMBER
         curr = datetime.datetime.utcnow().strftime("%y%j")
-        setup = re.sub(r'(version\s*=\s*\"\d*\.\d*\.)\d*(\")', r'\g<1>%s\2' % curr, setup)
+        setup = re.sub(r'(version\s*=\s*["\']\d*\.\d*\.)\d*(["\'])', r'\g<1>%s\2' % curr, setup)
 
         # UPDATE THE REQUIREMENTS
         if not req_file.exists:
             Log.error("Expecting a requirements.txt file")
         req = req_file.read()
         setup_req = re.findall(r'install_requires\s*=\s*\[.*\]\s*,', setup)
-        reqs = value2json(d for d in sorted(map(strings.trim, req.split("\n"))) if d)
+        reqs = value2json([d for d in sorted(map(strings.trim, req.split("\n"))) if d])
         setup = setup.replace(setup_req[0], 'install_requires='+reqs+",")
 
-        if Date.today() <= self.last_deploy():
-            Log.note("Can not upload to pypi")
+        if not force and Date.today() <= self.last_deploy():
+            Log.note("Can not upload to pypi, because already deployed today")
             return False
 
         setup_file.write(setup)
@@ -94,17 +96,10 @@ class Deploy(object):
         File.new_instance(self.directory, "dist").delete()
         File.new_instance(self.directory, lib_name.replace("-", "_") + ".egg-info").delete()
 
-        Log.note("PyPi Upload for {{dir}}", dir=self.directory.abspath)
-        # process, stdout, stderr = self.local("pypi", ["C:/Python27/python.exe", "setup.py", "bdist_egg", "upload"], raise_on_error=False)
-        # if "Upload failed (400): File already exists." in stderr:
-        #     Log.warning("Version exists. Not uploaded")
-        # elif "error: <urlopen error [Errno 11001] getaddrinfo failed>" in stderr:
-        #     Log.warning("No network. Not uploaded")
-        # elif process.returncode == 0:
-        #     pass
-        # else:
-        #     Log.error("not expected")
-        process, stdout, stderr = self.local("pypi", ["C:/Python27/python.exe", "setup.py", "sdist", "upload", "-r", "pypi"], raise_on_error=False)
+        Log.note("setup.py Preperation for {{dir}}", dir=self.directory.abspath)
+        self.local("pypi", ["C:/Python27/python.exe", "setup.py", "sdist"], raise_on_error=False)
+        Log.note("twine upload of {{dir}}", dir=self.directory.abspath)
+        process, stdout, stderr = self.local("twine", ["twine", "upload", "dist/*"], raise_on_error=False, show_all=True)
         if "Upload failed (400): File already exists." in stderr:
             Log.warning("Version exists. Not uploaded")
         elif "error: <urlopen error [Errno 11001] getaddrinfo failed>" in stderr:
@@ -114,7 +109,7 @@ class Deploy(object):
         elif "error: Upload failed (400): This filename has previously been used, you should use a different version." in stderr:
             Log.warning("Exists already in pypi")
         else:
-            Log.error("not expected")
+            Log.error("not expected\n{{result}}", result=stdout + stderr)
 
         File.new_instance(self.directory, "README.txt").delete()
         File.new_instance(self.directory, "build").delete()
@@ -140,7 +135,7 @@ class Deploy(object):
             Log.error("not expected {{result}}", result=result)
         try:
             self.local("git", [self.git, "push", "origin", "dev"])
-        except Exception, e:
+        except Exception as e:
             Log.warning("git origin dev not updated for {{dir}}", dir=self.directory.name, cause=e)
 
     def update_master(self):
@@ -150,17 +145,17 @@ class Deploy(object):
             result = self.local("git", [self.git, "merge", "--no-ff", "dev"])
             try:
                 result = self.local("git", [self.git, "push", "origin", "master"])
-            except Exception, e:
+            except Exception as e:
                 Log.warning("git origin master not updated for {{dir}}", dir=self.directory.name, cause=e)
         finally:
             result = self.local("git", [self.git, "checkout", "dev"])
 
-    def local(self, cmd, args, raise_on_error=True, show_all=False):
-        p = Process(cmd, args, cwd=self.directory).join(raise_on_error=raise_on_error)
+    def local(self, cmd, args, raise_on_error=True, show_all=False, cwd=None):
+        p = Process(cmd, args, cwd=coalesce(cwd, self.directory)).join(raise_on_error=raise_on_error)
         stdout = list(p.stdout)
         stderr = list(p.stderr)
         if show_all:
-            Log.note("stdout = {{stdout}}\nstderr = {{stderr}}", stdout=stdout, stderr=stderr)
+            Log.note("stdout = {{stdout}}\nstderr = {{stderr}}", stdout=stdout, stderr=stderr, stack_depth=1)
         return p, stdout, stderr
 
 
@@ -204,7 +199,7 @@ def main():
             deploy_all(settings)
         else:
             Deploy(File(settings.args.directory), kwargs=settings).deploy()
-    except Exception, e:
+    except Exception as e:
         Log.warning("Problem with etl", cause=e)
     finally:
         Log.stop()

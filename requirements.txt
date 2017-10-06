@@ -1,4 +1,7 @@
-mo-dots
+future
+pypandoc
+twine
+mo-dots>=1.4.17187
 mo-logs
 mo-threads
 mo-json-config
