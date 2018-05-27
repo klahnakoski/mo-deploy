@@ -1,28 +1,34 @@
 {
-	"prefix": "mo-",
-	"git": "C:/Program Files/Git/cmd/git.exe",
-	"svn": "C:/Program Files/TortoiseSVN/bin/svn.exe",
-	"modules":[
-//		"C:/Users/kyle/code/moz-sql-parser",
-//		"c:/users/kyle/code/mo-dots",
-		"c:/users/kyle/code/mo-logs",
-//		"c:/users/kyle/code/mo-files",
-//		"c:/users/kyle/code/mo-threads",
-//		"c:/users/kyle/code/mo-kwargs",
-//		"c:/users/kyle/code/mo-math",
-//		"c:/users/kyle/code/mo-times",
-//		"c:/users/kyle/code/mo-collections",
-//		"c:/users/kyle/code/mo-testing",
-//		"c:/users/kyle/code/mo-json",
-//		"c:/users/kyle/code/mo-json-config",
-//		"c:/users/kyle/code/pyLibrary"
-
-//		"c:/users/kyle/code/mo-hg",
-//		"c:/users/kyle/code/mo-deploy",
-
-
-	],
-	"debug":{
-		"trace":true
-	}
+    "prefix": "mo-",
+    "git": "C:/Program Files/Git/cmd/git.exe",
+    "svn": "C:/Program Files/TortoiseSVN/bin/svn.exe",
+    "pip": "pip",
+    "deploy":[
+        "moz-sql-parser"
+    ],
+    "modules": [
+        "c:/users/kyle/code/mo-future",
+        "c:/users/kyle/code/mo-dots",
+        "c:/users/kyle/code/mo-logs",
+        "c:/users/kyle/code/mo-files",
+        "c:/users/kyle/code/mo-threads",
+        "c:/users/kyle/code/mo-kwargs",
+        "c:/users/kyle/code/mo-math",
+        "c:/users/kyle/code/mo-times",
+        "c:/users/kyle/code/mo-collections",
+        "c:/users/kyle/code/mo-testing",
+        "c:/users/kyle/code/mo-json",
+        "c:/users/kyle/code/mo-json-config",
+        "c:/users/kyle/code/pyLibrary",
+        "c:/Users/kyle/code/moz-sql-parser",
+        "c:/users/kyle/code/mo-hg",
+        "c:/users/kyle/code/mo-deploy",
+//        "c:/users/kyle/code/jx-sqlite",
+//        "c:/users/kyle/code/jx-elasticsearch",
+        "c:/users/kyle/code/jx-python",
+//        "c:/users/kyle/code/esFrontLine",
+    ],
+    "debug": {
+        "trace": true
+    }
 }
