@@ -7,27 +7,42 @@
         "moz-sql-parser"
     ],
     "modules": [
-        "c:/users/kyle/code/mo-future",
-        "c:/users/kyle/code/mo-dots",
+//        "c:/users/kyle/code/mo-future",
+//        "c:/users/kyle/code/mo-dots",
         "c:/users/kyle/code/mo-logs",
-        "c:/users/kyle/code/mo-files",
-        "c:/users/kyle/code/mo-threads",
-        "c:/users/kyle/code/mo-kwargs",
-        "c:/users/kyle/code/mo-math",
-        "c:/users/kyle/code/mo-times",
-        "c:/users/kyle/code/mo-collections",
-        "c:/users/kyle/code/mo-testing",
-        "c:/users/kyle/code/mo-json",
-        "c:/users/kyle/code/mo-json-config",
-        "c:/users/kyle/code/pyLibrary",
-        "c:/Users/kyle/code/moz-sql-parser",
-        "c:/users/kyle/code/mo-hg",
-        "c:/users/kyle/code/mo-deploy",
+//        "c:/users/kyle/code/mo-files",
+//        "c:/users/kyle/code/mo-threads",
+//        "c:/users/kyle/code/mo-kwargs",
+//        "c:/users/kyle/code/mo-math",
+//        "c:/users/kyle/code/mo-collections",
+//        "c:/users/kyle/code/mo-times",
+//        "c:/users/kyle/code/mo-testing",
+//        "c:/users/kyle/code/mo-json",
+//        "c:/users/kyle/code/mo-json-config",
+//        "c:/users/kyle/code/pyLibrary",
+//        "c:/Users/kyle/code/moz-sql-parser",
+//        "c:/users/kyle/code/mo-hg",
+//        "c:/users/kyle/code/mo-deploy",
 //        "c:/users/kyle/code/jx-sqlite",
 //        "c:/users/kyle/code/jx-elasticsearch",
-        "c:/users/kyle/code/jx-python",
-//        "c:/users/kyle/code/esFrontLine",
+//        "c:/users/kyle/code/jx-python",
+
+//        {
+//            "name": "ActiveData",
+//            "location": "c:/users/kyle/code/ActiveData",
+//            "dev_branch": "dev",
+//            "deploy_branch": "bugzilla-etl"
+//        },
+//        {
+//            "name": "esFrontLine",
+//            "location": "c:/users/kyle/code/esFrontLine",
+//            "dev_branch": "dev",
+//            "deploy_branch": "test-deploy"
+//        }
     ],
+    "constants":{
+        "pyLibrary.env.http.default_headers": {"Referer":"https://github.com/klahnakoski/mo-deploy"}
+    },
     "debug": {
         "trace": true
     }

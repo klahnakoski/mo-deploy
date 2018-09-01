@@ -12,6 +12,7 @@ from __future__ import unicode_literals
 import datetime
 import re
 
+from mo_dots import Null
 from mo_future import text_type
 from mo_logs import Log
 
@@ -28,6 +29,12 @@ class Version(object):
 
     __slots__ = ["version"]
 
+    def __new__(cls, version):
+        if version == None:
+            return Null
+        else:
+            return object.__new__(cls)
+
     def __init__(self, version):
         if isinstance(version, tuple):
             self.version = version
@@ -42,8 +49,11 @@ class Version(object):
     def __gt__(self, other):
         other = Version(other)
         for s, o in zip(self.version, other.version):
-            if s > o:
+            if s < o:
+                return False
+            elif s > o:
                 return True
+
         return False
 
     def __ge__(self, other):

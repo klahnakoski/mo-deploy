@@ -12,6 +12,7 @@ from __future__ import unicode_literals
 from toposort import toposort
 
 from mo_deploy.module import Module
+from mo_logs import Log
 from mo_math import UNION
 
 
@@ -19,8 +20,7 @@ class ModuleGraph(object):
 
     def __init__(self, module_directories):
         graph = self.graph = {}
-        limits = self.limits = {}  # MAP FROM MODULE NAME TO (MAP FROM REQUIREMENT NAME TO LIMITS)
-        version = self.version = {}
+        versions = self.versions = {}
 
         self.modules = {
             m.name: m
@@ -32,26 +32,40 @@ class ModuleGraph(object):
             module_name = m.name
             # FIND DEPENDENCIES FOR EACH MODULE
             graph[module_name] = set()
-            limits[module_name] = {}
-            version[module_name]= m.get_version()[0]
+            versions[module_name] = m.get_version()[0]
 
             for req in m.get_requirements():
-                # EXPECTING
-                limits[module_name][req.name] = req.type, req.version
                 graph[module_name].add(req.name)
         self.toposort = list(toposort(graph))
 
         # WHAT MODULES NEED UPDATE?
-        self.todo = self._sorted(self.get_dependencies(m for m in self.modules.values() if m.can_upgrade() or m.last_deploy() < m.get_version()[0]))
+        candidates_for_update = [
+            m
+            for m in self.modules.values()
+            if m.can_upgrade() or m.last_deploy() < m.get_version()[0]
+        ]
+
+        Log.alert("Changed modules: {{modules}}", modules=[c.name for c in candidates_for_update])
+
+        self.todo = self.get_dependencies(candidates_for_update)
+        self.todo_names = set(t.name for t in self.todo)
 
         if not self.todo:
-            self.next_version = max(v for m, v in version.items())
+            self.next_version = max(versions.values())
         else:
             # ASSIGN next_version IN CASE IT IS REQUIRED
             # IF b DEPENDS ON a THEN version(b)>=version(a)
             # next_version(a) > version(a)
-            max_version = max(v for m, v in version.items())
+            max_version = max(versions.values())
             self.next_version = max_version + 1
+
+            Log.alert("Updating: {{modules}}", modules=self.todo_names)
+
+    def get_version(self, module_name):
+        if module_name in self.todo_names:
+            return self.next_version
+        else:
+            return self.versions[module_name]
 
     def get_dependencies(self, modules):
         """

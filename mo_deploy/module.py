@@ -9,20 +9,24 @@
 from __future__ import division
 from __future__ import unicode_literals
 
-import re
+from collections import Mapping
 
-import pypandoc
-
+import mo_json_config
 from mo_deploy.utils import parse_req, Version
 from mo_dots import coalesce, wrap
 from mo_files import File
 from mo_future import text_type, sort_using_key
 from mo_json import value2json
-from mo_logs import strings, Log
+from mo_logs import Log, Except
 from mo_logs.strings import quote
+from mo_math.randoms import Random
 from mo_threads import Process
-from mo_times.dates import unicode2Date
+from mo_times import SECOND
+from pyLibrary.env import http
+from pyLibrary.meta import cache
 
+
+SETUPTOOLS = 'setuptools.json'
 
 class Module(object):
     # FULL PATH TO EXECUTABLES
@@ -30,116 +34,152 @@ class Module(object):
     svn = "svn"
     pip = "pip"
     twine = "twine"
+    python = "C:/Python27/python.exe"
 
-    def __init__(self, directory, graph):
-        self.directory = File(directory)
+    def __init__(self, info, graph):
+        if isinstance(info, Mapping):
+            self.master_branch = coalesce(info.deploy_branch, "master")
+            self.dev_branch = coalesce(info.dev_branch, "dev")
+            self.directory = File(info.location)
+            self.name = coalesce(info.name, self.directory.name.replace("_", "-"))
+        else:
+            self.master_branch = "master"
+            self.dev_branch = "dev"
+            self.directory = File(info)
+            self.name = self.directory.name.replace("_", "-")
         self.version = None
         self.graph = graph
-
-    @property
-    def name(self):
-        return self.directory.name.replace("_", "-")
 
     def deploy(self):
         self.setup()
         self.svn_update()
         self.update_dev("updates from other projects")
-        curr_version, revision = self.get_version()
 
-        if curr_version==self.graph.version:
+        curr_version, revision = self.get_version()
+        if curr_version == self.graph.next_version:
             Log.error("{{module}} does not need deploy", module=self.name)
 
-        self.update_version(self.graph.version)
-        success = self.pypi()
-        if success:
+        master_rev = self.master_revision()
+        try:
+            self.update_setup_file(self.graph.next_version)
             self.update_dev("update version number")
-            self.update_master(self.graph.version)
-        else:
-            # ROLLBACK CHANGES TO setup.py
-            self.local("git", ["stash"])
-        return success
+            self.update_master_locally(self.graph.next_version)
+            self.pypi()
+            self.local("git", [self.git, "push", "origin", self.master_branch])
+        except Exception as e:
+            e = Except.wrap(e)
+            self.local("git", [self.git, "checkout", master_rev])
+            self.local("git", [self.git, "tag", "--delete", "v" + text_type(self.graph.next_version)], raise_on_error=False)
+            self.local("git", [self.git, "branch", "-D", self.master_branch], raise_on_error=False)
+            self.local("git", [self.git, "checkout", "-b", self.master_branch])
+            Log.error("Can not deploy", cause=e)
+        finally:
+            self.local("git", [self.git, "checkout", self.dev_branch])
 
     def setup(self):
-        self.local("git", [self.git, "checkout", "dev"])
-        self.local("git", [self.git, "merge", "master"])
+        self.local("git", [self.git, "checkout", self.dev_branch])
+        self.local("git", [self.git, "merge", self.master_branch])
 
+    @cache(duration=10*SECOND)
     def last_deploy(self):
+        url = "https://pypi.org/pypi/" + self.name + "/json"
         try:
-            self.local("pip", [self.pip, "uninstall", "-y", self.directory.name], raise_on_error=False, show_all=True)
-            self.local("pip", [self.pip, "install", "--no-cache-dir", self.directory.name], cwd=self.directory.parent, show_all=True)
-            process, stdout, stderr = self.local("pip", [self.pip, "show", self.directory.name], cwd=self.directory.parent, show_all=True)
-            for line in stdout:
-                if line.startswith("Version:"):
-                    version = Version(line.split(":")[1])
-                    date = unicode2Date(version.mini, format="%y%j")
-                    Log.note("PyPi last deployed {{date|datetime}}", date=date, dir=self.directory)
-                    return version
-            return None
+            return max(Version(k) for k in http.get_json(url).releases.keys())
         except Exception as e:
-            Log.warning("could not get version", cause=e)
+            Log.warning("could not get version from {{url}}", url=url, cause=e)
             return None
+
+    def scrub_pypi_residue(self):
+        (self.directory / "README.txt").delete()
+        (self.directory / "build").delete()
+        (self.directory / "dist").delete()
+        (self.directory / (self.directory.name.replace("-", "_") + ".egg-info")).delete()
 
     def pypi(self):
+        setup_file = self.directory / 'setup.py'
+
         Log.note("Update PyPi for {{dir}}", dir=self.directory.abspath)
-        lib_name = self.directory.name
-        source_readme = File.new_instance(self.directory, 'README.md').abspath
-        dest_readme = File.new_instance(self.directory, 'README.txt').abspath
-        pypandoc.convert(source_readme, to=b'rst', outputfile=dest_readme)
+        try:
+            self.scrub_pypi_residue()
 
-        File.new_instance(self.directory, "build").delete()
-        File.new_instance(self.directory, "dist").delete()
-        File.new_instance(self.directory, lib_name.replace("-", "_") + ".egg-info").delete()
+            Log.note("write setup.py")
+            setup = mo_json_config.get_file(self.directory / SETUPTOOLS)
+            setup_file.write(
+                "from setuptools import setup\n" +
+                "setup(\n" +
+                ",\n".join("    " + k + "=" + value2python(v) for k, v in setup.items()) + "\n" +
+                ")"
+            )
+            Log.note("run setup.py")
+            self.local("pypi", [self.python, "setup.py", "sdist"], raise_on_error=True)
 
-        Log.note("setup.py Preperation for {{dir}}", dir=self.directory.abspath)
-        self.local("pypi", ["C:/Python27/python.exe", "setup.py", "sdist"], raise_on_error=False)
-        Log.note("twine upload of {{dir}}", dir=self.directory.abspath)
-        process, stdout, stderr = self.local("twine", [self.twine, "upload", "dist/*"], raise_on_error=False, show_all=True)
-        if "Upload failed (400): File already exists." in stderr:
-            Log.warning("Version exists. Not uploaded")
-        elif "error: <urlopen error [Errno 11001] getaddrinfo failed>" in stderr:
-            Log.warning("No network. Not uploaded")
-        elif process.returncode == 0:
-            pass
-        elif "error: Upload failed (400): This filename has previously been used, you should use a different version." in stderr:
-            Log.warning("Exists already in pypi")
-        elif "503: Service Unavailable" in stderr:
-            Log.warning("Some big problem during upload")
-        else:
-            Log.error("not expected\n{{result}}", result=stdout + stderr)
+            Log.note("twine upload of {{dir}}", dir=self.directory.abspath)
+            process, stdout, stderr = self.local("twine", [self.twine, "upload", "dist/*"], raise_on_error=False, show_all=True)
+            if "Upload failed (400): File already exists." in stderr:
+                Log.error("Version exists. Not uploaded")
+            elif "error: <urlopen error [Errno 11001] getaddrinfo failed>" in stderr:
+                Log.error("No network. Not uploaded")
+            elif process.returncode == 0:
+                pass
+            elif "error: Upload failed (400): This filename has previously been used, you should use a different version." in stderr:
+                Log.error("Exists already in pypi")
+            elif "503: Service Unavailable" in stderr:
+                Log.error("Some big problem during upload")
+            else:
+                Log.error("not expected\n{{result}}", result=stdout + stderr)
+        finally:
+            setup_file.delete()
+            self.scrub_pypi_residue()
 
-        File.new_instance(self.directory, "README.txt").delete()
-        File.new_instance(self.directory, "build").delete()
-        File.new_instance(self.directory, "dist").delete()
-        File.new_instance(self.directory, lib_name.replace("-", "_") + ".egg-info").delete()
-        return True
+    def update_setup_file(self, new_version):
+        setup_file = self.directory / 'setup.py'
+        setup_json = self.directory / SETUPTOOLS
+        readme = self.directory / 'README.md'
+        req_file = self.directory / 'requirements.txt'
 
-    def update_version(self, new_version):
-        setup_file = File.new_instance(self.directory, 'setup.py')
-        req_file = File.new_instance(self.directory, 'requirements.txt')
-        if not setup_file.exists:
-            Log.warning("Not a PyPi project! No setup.py file.")
-        setup = setup_file.read().replace("\r", "")
-        # UPDATE THE VERSION NUMBER
-        old_version = strings.between(setup, "version=", ",")
-        if not old_version:
-            Log.error("could not find version number")
-        self.version = new_version
-
-        setup = setup.replace("version=" + old_version, "version=" + quote(text_type(self.version)))
-        # UPDATE THE REQUIREMENTS
+        # CHECK FILES EXISTENCE
+        if setup_file.exists:
+            Log.error("expecting no setup.py file; it will be created from setup.json")
+        if not setup_json.exists:
+            Log.error("expecting {{file}} file", file=SETUPTOOLS)
+        if not readme.exists:
+            Log.error("expecting a README.md file to add to long_description")
         if not req_file.exists:
             Log.error("Expecting a requirements.txt file")
-        old_requires = re.findall(r'install_requires\s*=\s*\[.*\]\s*,', setup)
+
+        # LOAD
+        setup = mo_json_config.get_file(setup_json)
+
+        # LONG DESCRIPTION
+        setup.long_description_content_type='text/markdown'
+        setup.long_description = readme.read()
+
+        # PACKAGES
+        setup.packages = [
+            f.parent.abspath[len(self.directory.abspath)+1:]
+            for f in self.directory.leaves
+            if f.name == '__init__' and f.extension == 'py'
+        ]
+
+        # VERSION
+        setup.version = text_type(new_version)
+
+        # REQUIRES
         reqs = self.get_requirements()
-        new_requires = value2json([
-            r.name + r.type + r.version if r.version else r.name
+        setup.install_requires = [
+            r.name + r.type + text_type(r.version) if r.version else r.name
             for r in sort_using_key(reqs, key=lambda rr: rr.name)
-        ])
-        setup = setup.replace(old_requires[0], 'install_requires=' + new_requires + ",")
-        setup_file.write(setup)
+        ]
+
+        # WRITE JSON FILE
+        setup_json.write(value2json(setup, pretty=True))
+
+
+
+
 
     def svn_update(self):
-        self.local("git", [self.git, "checkout", "dev"])
+        self.local("git", [self.git, "checkout", self.dev_branch])
 
         for d in self.directory.find(r"\.svn"):
             svn_dir = d.parent.abspath
@@ -149,6 +189,7 @@ class Module(object):
 
     def update_dev(self, message):
         Log.note("Update git dev branch for {{dir}}", dir=self.directory.abspath)
+        self.scrub_pypi_residue()
         self.local("git", [self.git, "add", "-A"])
         process, stdout, stderr = self.local("git", [self.git, "commit", "-m", message], raise_on_error=False)
         if "nothing to commit, working directory clean" in stdout or process.returncode == 0:
@@ -156,23 +197,18 @@ class Module(object):
         else:
             Log.error("not expected {{result}}", result=(stdout, stderr))
         try:
-            self.local("git", [self.git, "push", "origin", "dev"])
+            self.local("git", [self.git, "push", "origin", self.dev_branch])
         except Exception as e:
             Log.warning("git origin dev not updated for {{dir}}", dir=self.directory.name, cause=e)
 
-    def update_master(self, version):
+    def update_master_locally(self, version):
         Log.note("Update git master branch for {{dir}}", dir=self.directory.abspath)
         try:
-            self.local("git", [self.git, "checkout", "master"])
-            self.local("git", [self.git, "merge", "--no-ff", "dev"])
+            self.local("git", [self.git, "checkout", self.master_branch])
+            self.local("git", [self.git, "merge", "--no-ff", self.dev_branch])
             self.local("tag", [self.git, "tag", "v" + text_type(version)])
-
-            try:
-                self.local("git", [self.git, "push", "origin", "master"])
-            except Exception as e:
-                Log.warning("git origin master not updated for {{dir}}", dir=self.directory.name, cause=e)
-        finally:
-            self.local("git", [self.git, "checkout", "dev"])
+        except Exception as e:
+            Log.error("git origin master not updated for {{dir}}", dir=self.directory.name, cause=e)
 
     def local(self, cmd, args, raise_on_error=True, show_all=False, cwd=None):
         try:
@@ -193,6 +229,12 @@ class Module(object):
                 "type": type,
                 "version": version
             }
+            if req_name not in self.graph.graph or not hasattr(self.graph, "next_version") else
+            {
+                "name": req_name,
+                "type": ">=",
+                "version": self.graph.get_version(req_name)
+            }
             for line in (self.directory / "requirements.txt").read_lines()
             for req_name, type, version in [parse_req(line)]
         ])
@@ -200,10 +242,11 @@ class Module(object):
             Log.error("found problem in {{module}}", module=self.name)
         return output
 
+    @cache(duration=10*SECOND)
     def get_version(self):
         # RETURN version, revision PAIR
         p, stdout, stderr = self.local("list tags", ["git", "tag"])
-        all_versions = [Version(line.ltrim('v')) for line in stdout]
+        all_versions = [Version(line.lstrip('v')) for line in stdout]
 
         if all_versions:
             version = max(all_versions)
@@ -212,7 +255,17 @@ class Module(object):
                 if line.startswith("commit "):
                     revision = line.split("commit")[1].strip()
                     return version, revision
-        return None, None
+
+        version = self.last_deploy()
+        revision = self.master_revision()
+        return version, revision
+
+    def master_revision(self):
+        p, stdout, stderr = self.local("get current rev", [self.git, "log", self.master_branch, "-1"])
+        for line in stdout:
+            if line.startswith("commit "):
+                revision = line.split("commit")[1].strip()
+                return revision
 
     def current_revision(self):
         p, stdout, stderr = self.local("get current rev", [self.git, "log", "-1"])
@@ -224,9 +277,28 @@ class Module(object):
     def can_upgrade(self):
         # get current version, hash
         version, revision = self.get_version()
-
         self.svn_update()
         self.update_dev("updates from other projects")
-        curr_revision = self.current_revision()
+
+        # COMPARE TO MASTER
+        branch_name = Random.string(10)
+        self.local("git", [self.git, "checkout", "-b", branch_name, self.master_branch])
+        try:
+            self.local("git", [self.git, "merge", self.dev_branch])
+            curr_revision = self.current_revision()
+        except Exception:
+            self.local("git", [self.git, "reset", "--hard", "HEAD"])
+            self.local("git", [self.git, "checkout", self.dev_branch])
+            curr_revision = self.current_revision()
+        finally:
+            self.local("git", [self.git, "checkout", self.dev_branch])
+            self.local("git", [self.git, "branch", "-D", branch_name])
 
         return curr_revision != revision
+
+
+def value2python(value):
+    if value in (True, False, None):
+        return text_type(repr(value))
+    else:
+        return value2json(value)
