@@ -156,7 +156,7 @@ class Module(object):
         setup.packages = [
             f.parent.abspath[len(self.directory.abspath)+1:]
             for f in self.directory.leaves
-            if f.name == '__init__' and f.extension == 'py'
+            if f.name == '__init__' and f.extension == 'py' and f.name != "test"
         ]
 
         # VERSION
