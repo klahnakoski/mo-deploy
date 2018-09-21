@@ -18,15 +18,13 @@ from mo_files import File
 from mo_future import text_type, sort_using_key
 from mo_json import value2json
 from mo_logs import Log, Except
-from mo_logs.strings import quote
 from mo_math.randoms import Random
 from mo_threads import Process
 from mo_times import SECOND
 from pyLibrary.env import http
 from pyLibrary.meta import cache
 
-
-SETUPTOOLS = 'setuptools.json'
+SETUPTOOLS = 'setuptools.json'  # CONFIGURATION EXPECTED TO MAKE A setup.py FILE
 
 class Module(object):
     # FULL PATH TO EXECUTABLES

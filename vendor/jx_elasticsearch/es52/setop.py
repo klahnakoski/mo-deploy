@@ -13,7 +13,6 @@ from __future__ import unicode_literals
 
 from collections import Mapping
 
-from jx_base import NESTED
 from jx_base.domains import ALGEBRAIC
 from jx_base.expressions import IDENTITY
 from jx_base.query import DEFAULT_LIMIT
@@ -26,6 +25,7 @@ from mo_collections.matrix import Matrix
 from mo_dots import coalesce, split_field, set_default, Data, unwraplist, literal_field, unwrap, wrap, concat_field, relative_field, join_field, listwrap
 from mo_dots.lists import FlatList
 from mo_future import transpose
+from mo_json.typed_encoder import NESTED
 from mo_json.typed_encoder import untype_path, unnest_path, untyped
 from mo_logs import Log
 from mo_math import AND, MAX
@@ -209,7 +209,7 @@ def es_setop(es, query):
         else:
             Log.error("Do not know what to do")
 
-    with Timer("call to ES", silent=True) as call_timer:
+    with Timer("call to ES") as call_timer:
         data = es_post(es, es_query, query.limit)
 
     T = data.hits.hits
@@ -217,7 +217,8 @@ def es_setop(es, query):
     try:
         formatter, groupby_formatter, mime_type = format_dispatch[query.format]
 
-        output = formatter(T, new_select, query)
+        with Timer("formatter"):
+            output = formatter(T, new_select, query)
         output.meta.timing.es = call_timer.duration
         output.meta.content_type = mime_type
         output.meta.es_query = es_query
@@ -329,7 +330,8 @@ def format_table(T, select, query=None):
 
 
 def format_cube(T, select, query=None):
-    table = format_table(T, select, query)
+    with Timer("format table"):
+        table = format_table(T, select, query)
 
     if len(table.data) == 0:
         return Cube(
