@@ -45,7 +45,7 @@ def main():
             m.deploy()
 
     except Exception as e:
-        Log.warning("Problem with etl", cause=e)
+        Log.warning("Problem with deploy", cause=e)
     finally:
         Log.stop()
 

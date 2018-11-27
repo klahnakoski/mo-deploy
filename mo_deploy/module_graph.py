@@ -9,6 +9,7 @@
 from __future__ import division
 from __future__ import unicode_literals
 
+from mo_dots import coalesce
 from toposort import toposort
 
 from mo_deploy.module import Module
@@ -56,7 +57,7 @@ class ModuleGraph(object):
             # ASSIGN next_version IN CASE IT IS REQUIRED
             # IF b DEPENDS ON a THEN version(b)>=version(a)
             # next_version(a) > version(a)
-            max_version = max(versions.values())
+            max_version = max(v for v in versions.values() if v != None)
             self.next_version = max_version + 1
 
             Log.alert("Updating: {{modules}}", modules=self.todo_names)

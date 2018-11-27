@@ -12,7 +12,7 @@ from __future__ import unicode_literals
 from collections import Mapping
 
 import mo_json_config
-from mo_deploy.utils import parse_req, Version
+from mo_deploy.utils import parse_req
 from mo_dots import coalesce, wrap
 from mo_files import File
 from mo_future import text_type, sort_using_key
@@ -23,8 +23,10 @@ from mo_threads import Process
 from mo_times import SECOND
 from pyLibrary.env import http
 from pyLibrary.meta import cache
+from pyLibrary.utils import Version
 
 SETUPTOOLS = 'setuptools.json'  # CONFIGURATION EXPECTED TO MAKE A setup.py FILE
+
 
 class Module(object):
     # FULL PATH TO EXECUTABLES
@@ -103,6 +105,7 @@ class Module(object):
             Log.note("write setup.py")
             setup = mo_json_config.get_file(self.directory / SETUPTOOLS)
             setup_file.write(
+                "from __future__ import unicode_literals\n" +
                 "from setuptools import setup\n" +
                 "setup(\n" +
                 ",\n".join("    " + k + "=" + value2python(v) for k, v in setup.items()) + "\n" +
@@ -137,7 +140,7 @@ class Module(object):
 
         # CHECK FILES EXISTENCE
         if setup_file.exists:
-            Log.error("expecting no setup.py file; it will be created from setup.json")
+            Log.error("expecting no setup.py file; it will be created from {{tools}}", tools=SETUPTOOLS)
         if not setup_json.exists:
             Log.error("expecting {{file}} file", file=SETUPTOOLS)
         if not readme.exists:
@@ -149,15 +152,21 @@ class Module(object):
         setup = mo_json_config.get_file(setup_json)
 
         # LONG DESCRIPTION
-        setup.long_description_content_type='text/markdown'
+        setup.long_description_content_type = 'text/markdown'
         setup.long_description = readme.read()
 
         # PACKAGES
-        setup.packages = [
-            f.parent.abspath[len(self.directory.abspath)+1:]
+        packages = [
+            dir_name
             for f in self.directory.leaves
-            if f.name == '__init__' and f.extension == 'py' and f.name != "test"
+            if f.name == '__init__' and f.extension == 'py'
+            for dir_name in [f.parent.abspath[len(self.directory.abspath)+1:]]
+            if dir_name and not dir_name.startswith("tests/") and dir_name != "tests"
         ]
+        if setup.packages == None:
+            setup.packages = packages
+        elif set(setup.packages) != set(packages):
+            Log.warning("Packages are {{existing}}. Maybe they should be {{proposed}}", existing=setup.packages, proposed=packages)
 
         # VERSION
         setup.version = text_type(new_version)
@@ -171,10 +180,6 @@ class Module(object):
 
         # WRITE JSON FILE
         setup_json.write(value2json(setup, pretty=True))
-
-
-
-
 
     def svn_update(self):
         self.local("git", [self.git, "checkout", self.dev_branch])
