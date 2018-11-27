@@ -52,16 +52,21 @@ class Till(Signal):
             return object.__new__(cls)
 
     def __init__(self, till=None, seconds=None):
+        """
+        ONE OF THESE PARAMETERS IS REQUIRED
+        :param till: UNIX TIMESTAMP OF WHEN TO SIGNAL
+        :param seconds: PREFERRED OVER timeout
+        """
         now = time()
         if till != None:
             if not isinstance(till, (float, int)):
                 from mo_logs import Log
-
                 Log.error("Date objects for Till are no longer allowed")
             timeout = till
         elif seconds != None:
             timeout = now + seconds
         else:
+            from mo_logs import Log
             raise Log.error("Should not happen")
 
         Signal.__init__(self, name=text_type(timeout))

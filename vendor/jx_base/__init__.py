@@ -35,6 +35,10 @@ def generateGuid():
     return text_type(uuid4())
 
 
+def first(values):
+    return iter(values).next()
+
+
 def _exec(code, name):
     try:
         globs = globals()
@@ -79,7 +83,7 @@ def DataClass(name, columns, constraint=None):
     required = wrap(filter(lambda c: c.required and not c.nulls and not c.default, columns)).name
     nulls = wrap(filter(lambda c: c.nulls, columns)).name
     defaults = {c.name: coalesce(c.default, None) for c in columns}
-    types = {c.name: coalesce(c.type, object) for c in columns}
+    types = {c.name: coalesce(c.jx_type, object) for c in columns}
 
     code = expand_template(
 """
@@ -204,21 +208,21 @@ class TableDesc(DataClass(
 Column = DataClass(
     "Column",
     [
-        # "table",
-        "names",  # MAP FROM TABLE NAME TO COLUMN NAME (ONE COLUMN CAN HAVE MULTIPLE NAMES)
+        "name",
         "es_column",
         "es_index",
         "es_type",
-        {"name": "jx_type", "nulls": True},
+        "jx_type",
         {"name": "useSource", "default": False},
-        {"name": "nested_path", "nulls": True},  # AN ARRAY OF PATHS (FROM DEEPEST TO SHALLOWEST) INDICATING THE JSON SUB-ARRAYS
+        "nested_path",  # AN ARRAY OF PATHS (FROM DEEPEST TO SHALLOWEST) INDICATING THE JSON SUB-ARRAYS
         {"name": "count", "nulls": True},
         {"name": "cardinality", "nulls": True},
         {"name": "multi", "nulls": True},
         {"name": "partitions", "nulls": True},
-        {"name": "last_updated", "nulls": True}
+        "last_updated"
     ],
     constraint={"and": [
+        {"not":{"eq":{"es_column":"string"}}},
         {"eq": [{"last": "nested_path"}, {"literal": "."}]}
     ]}
 )
@@ -230,3 +234,5 @@ from jx_base.facts import Facts
 from jx_base.snowflake import Snowflake
 from jx_base.table import Table
 from jx_base.schema import Schema
+
+

@@ -19,10 +19,11 @@ import signal as _signal
 import sys
 from copy import copy
 from datetime import datetime, timedelta
-from time import sleep
+from time import sleep, time
 
-from mo_dots import Data, unwraplist, Null
-from mo_future import get_ident, start_new_thread, interrupt_main, get_function_name, text_type, allocate_lock
+
+from mo_dots import Data, unwraplist
+from mo_future import get_ident, start_new_thread, get_function_name, text_type, allocate_lock, PY3
 from mo_logs import Log, Except
 from mo_threads.lock import Lock
 from mo_threads.profiles import CProfiler, write_profiles
@@ -110,11 +111,14 @@ class MainThread(BaseThread):
         BLOCKS UNTIL ALL THREADS HAVE STOPPED
         THEN RUNS sys.exit(0)
         """
-        self.please_stop.go()
+        global DEBUG
 
         self_thread = Thread.current()
         if self_thread != MAIN_THREAD or self_thread != self:
             Log.error("Only the main thread can call stop() on main thread")
+
+        DEBUG = True
+        self.please_stop.go()
 
         join_errors = []
         with self.child_lock:
@@ -144,7 +148,7 @@ class MainThread(BaseThread):
 
         write_profiles(self.cprofiler)
         DEBUG and Log.note("Thread {{name|quote}} now stopped", name=self.name)
-        sys.exit(0)
+        sys.exit()
 
     def wait_for_shutdown_signal(
         self,
@@ -167,7 +171,9 @@ class MainThread(BaseThread):
             Log.error("Only the main thread can sleep forever (waiting for KeyboardInterrupt)")
 
         if isinstance(please_stop, Signal):
+            # MUTUAL SIGNALING MAKES THESE TWO EFFECTIVELY THE SAME SIGNAL
             self.please_stop.on_go(please_stop.go)
+            please_stop.on_go(self.please_stop.go)
         else:
             please_stop = self.please_stop
 
@@ -175,9 +181,10 @@ class MainThread(BaseThread):
             # TRIGGER SIGNAL WHEN ALL CHILDREN THEADS ARE DONE
             with self_thread.child_lock:
                 pending = copy(self_thread.children)
-            all = AndSignals(please_stop, len(pending))
+            children_done = AndSignals(please_stop, len(pending))
+            children_done.signal.on_go(self.please_stop.go)
             for p in pending:
-                p.stopped.on_go(all.done)
+                p.stopped.on_go(children_done.done)
 
         try:
             if allow_exit:
@@ -327,7 +334,7 @@ class Thread(BaseThread):
             else:
                 Log.error("Thread {{name|quote}} did not end well", name=self.name, cause=self.end_of_thread.exception)
         else:
-            raise Except(type=THREAD_TIMEOUT)
+            raise Except(context=THREAD_TIMEOUT)
 
     @staticmethod
     def run(name, target, *args, **kwargs):
@@ -350,9 +357,13 @@ class Thread(BaseThread):
             output = ALL.get(ident)
 
         if output is None:
+            thread = BaseThread(ident)
+            thread.cprofiler = CProfiler()
+            thread.cprofiler.__enter__()
+            with ALL_LOCK:
+                ALL[ident] = thread
             Log.warning("this thread is not known. Register this thread at earliest known entry point.")
-            return BaseThread(get_ident())
-
+            return thread
         return output
 
 
@@ -380,11 +391,8 @@ def stop_main_thread(*args):
     """
     CLEAN OF ALL THREADS CREATED WITH THIS LIBRARY
     """
-    global DEBUG
-
-    DEBUG = True
     try:
-        if len(args):
+        if len(args) and args[0] != _signal.SIGTERM:
             Log.warning("exit with {{value}}", value=_describe_exit_codes.get(args[0], args[0]))
     except Exception as _:
         pass
@@ -403,15 +411,18 @@ _signal.signal(_signal.SIGINT, stop_main_thread)
 
 def _wait_for_exit(please_stop):
     """
-    /dev/null SPEWS INFINITE LINES, DO NOT POLL AS OFTEN
+    /dev/null PIPED TO sys.stdin SPEWS INFINITE LINES, DO NOT POLL AS OFTEN
     """
+    try:
+        import msvcrt
+        _wait_for_exit_on_windows(please_stop)
+    except:
+        pass
+
     cr_count = 0  # COUNT NUMBER OF BLANK LINES
 
-    please_stop.on_go(_interrupt_main_safely)
-
     while not please_stop:
-        # if DEBUG:
-        #     Log.note("inside wait-for-shutdown loop")
+        # DEBUG and Log.note("inside wait-for-shutdown loop")
         if cr_count > 30:
             (Till(seconds=3) | please_stop).wait()
         try:
@@ -422,8 +433,7 @@ def _wait_for_exit(please_stop):
                 _wait_for_interrupt(please_stop)
                 break
 
-        # if DEBUG:
-        #     Log.note("read line {{line|quote}}, count={{count}}", line=line, count=cr_count)
+        # DEBUG and Log.note("read line {{line|quote}}, count={{count}}", line=line, count=cr_count)
         if line == "":
             cr_count += 1
         else:
@@ -434,6 +444,24 @@ def _wait_for_exit(please_stop):
             return
 
 
+def _wait_for_exit_on_windows(please_stop):
+    import msvcrt
+
+    line = ""
+    while not please_stop:
+        if msvcrt.kbhit():
+            chr = msvcrt.getche()
+            if ord(chr) == 13:
+                if line == "exit":
+                    Log.alert("'exit' Detected!  Stopping...")
+                    return
+            elif ord(chr) > 32:
+                line += chr
+        else:
+            sleep(1)
+
+
+
 def _wait_for_interrupt(please_stop):
     DEBUG and Log.note("inside wait-for-shutdown loop")
     while not please_stop:
@@ -441,14 +469,6 @@ def _wait_for_interrupt(please_stop):
             sleep(1)
         except Exception:
             pass
-
-
-def _interrupt_main_safely():
-    try:
-        interrupt_main()
-    except KeyboardInterrupt:
-        # WE COULD BE INTERRUPTING SELF
-        pass
 
 
 MAIN_THREAD = MainThread()
