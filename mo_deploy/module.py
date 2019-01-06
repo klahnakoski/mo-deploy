@@ -105,6 +105,7 @@ class Module(object):
             Log.note("write setup.py")
             setup = mo_json_config.get_file(self.directory / SETUPTOOLS)
             setup_file.write(
+                "# encoding: utf-8\n" +
                 "from __future__ import unicode_literals\n" +
                 "from setuptools import setup\n" +
                 "setup(\n" +
