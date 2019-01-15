@@ -15,7 +15,7 @@ import mo_json_config
 from mo_deploy.utils import parse_req
 from mo_dots import coalesce, wrap
 from mo_files import File
-from mo_future import text_type, sort_using_key
+from mo_future import text_type, sort_using_key, is_text, is_binary
 from mo_json import value2json
 from mo_logs import Log, Except
 from mo_math.randoms import Random
@@ -307,5 +307,9 @@ class Module(object):
 def value2python(value):
     if value in (True, False, None):
         return text_type(repr(value))
+    elif is_text(value):
+        return text_type("str(" + repr(value) + ")")
+    elif is_binary(value):
+        return text_type("str(" + repr(value) + ")")
     else:
         return value2json(value)
