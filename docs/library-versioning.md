@@ -6,82 +6,119 @@ This document details my process for managing many libraries used in many projec
 
 ## Source code is wonderful! Use it. Own it. 
 
-This document assumes source code is useful, and can act as an effort multiplier to those that are familiar with the code.
+This document assumes source code is useful, and is an effort multiplier to those that are familiar with the code.
 
 Source code is beneficial in many ways, and I will list some of those ways code is useful. The reasoning overlaps somewhat, but I hope portray that code-as-a-library is powerful. 
 
 * **Reduced Learning Curve** - If you are already familiar with code that provides a solution, and you know its behaviour in corner case, you should use it over other 3rd party libraries, even if they may be more mature. You save yourself the time of climbing the learning curve for the 3rd party library, and save yourself from being surprised when it does not work as expected.
-* **Utilities** - Many projects have a `utils` directory that contains code that does not belong elsewhere in the project. Often those utility functions can be used in other projects; used like a toolbox.
+* **Bigger toolbox** - Many projects have a `utils` directory that contains code that does not belong elsewhere in the project. Often those utility functions can be used in other projects; used like a toolbox.
 * **Domain specific functions** - If you are coding in a specific field, you will see common patterns in the data structures and algorithms needed to solve problems in those fields. These are not utilility functions, rather can occupy multiple libraries   
-* **Facade** - Code can act as a facade over another library.  Often your application makes certain assumptions, or uses only a portion of library, that allows you to simplify calls to that library. Facades are also a good strategy to isolate your application code from the library implementation code
+* **Facade** - Code can act as a facade over another library. Often your application makes certain assumptions, or uses only a portion of library, that allows you to simplify calls to that library. Facades are also a good strategy to isolate your application code from the library implementation code
 * **Understanding a domain** - Maybe you see the world differently: Maybe you are mathematician and you wonder how engineers use and produce code with such sprawling and irregular behaviour. Maybe you are an engineer and you wonder how mathematicians use and produce such densely inscrutable code. In either case you make a facade that allows you to leverage that already-existing code while smoothing over bumps and communicating more clearly.   
 * **Incomplete libraries** - Being a domain expert, you may want to write a framework. But your time is limited, so you slowly refactor an existing project to separate the framework code from the rest of the project, or you may write just a skeleton of a new framework, and fill in the pieces your project actually use.
 * **3rd party code stability** - including the source code of another project is called "vendoring", and it is useful to cement the specific version of the library that works in your project; this gives you control over when and what gets changed in the future.
-* **3rd party bug fixes** - Most 3rd libraries are incomplete in some way that your project would like to use it. Maybe this is a bug fix, or a missing feature. Vendoring the code allows you to expediently fix bugs and add those features while you wait on the project maintainer to accept those changes, assuming the maintainer will ever accept those changes.  
+* **3rd party bug fixes** - Most 3rd libraries are incomplete in some way that your project would like to use it. Maybe this is a bug fix, or a missing feature. Vendoring the code allows you to expediently fix bugs and add those features while you wait on the project maintainer to accept those changes.
 * **Extension of your knowledge** - Code can contain the details of a process that your mind will soon forget. You may require the effect of a process often, but forgetting how it is implemented. Use should be using code as your knowledge store: You become a more capable coder when you have a large library of code you are inimitably familiar with. New projects are easier to start, and you are faster at getting-stuff-done.  
 
 For whatever reason, you have a suite of useful code that you use to implement solutions. They may have a range of maturity, but your intimate familiarity with the code mitigates that.
 
 ## Problem
 
+You have suite of libraries you would like to use in multiple projects. You would like to vendor the code for stability, but you would also like to update the code as if it belongs to the project.
+ 
+* personal toolbox
+* maturing frameworks
+* facades
+* forked repos
+ 
+## Existing Solutions
+
+The existing solutions are time consuming, or confusing.
+
+### Packaged projects?
+
+Packages provide the required portability between various projects, but they suffer from synchonization problems. Either a bug must be fixed in a library before project work can be resumed, or the API to a library is changing,   
+
+* while debugging `Project-1` 
+* you see a bug in `Library_1` code
+* you switch to the `Library_1` project
+* you change the `Library_1` code
+* you package `Library-1`
+* you update `Library-1` package in `Project-1`
+* you resume debugging `Project-1`
+
+This is fine for mature projects; the code is stable and production quality; bug fixes are unlikely to be beneficial to your project.
+
+If a library is still changing, or if it still needs stabilization work, then packaged projects make it difficult to change the library code. 
+
+### Single Repo?
+
+Storing all your code in a single repo allows you to change both the project code and the library code together. There are detriments:
+
+* All projects must be in the same repo to benefit from the library code
+* Repo can get enormous, 
+* Test cases get enormous most of which will be irrelevant to a particular project
+* Difficult to teach what is important to a single project 
+* You can not share library code with yet-more projects 
+
+
+
+
+
+
 Starting a new project is difficult because you must import, in one way or another, your personal suite of useful code.  
 
 Code is useful, you are intimately familiar with its inner workings, and you would like to use it in your projects
-You want you library code included in each of your projects,  (this is called "vendoring" 
+
+
+
 
 ```
-my_project
+Project_1
   |
   +-- vendor
         |
-        +-- my_library
+        +-- Library_1
+        |
+        +-- Library_2
 ```
+
+
+
+Here is a diagram of a git repo, with three branches, each with (some version of) library code 
+
+<img src="library-versioning-one-project.png" style="width:226">
 
 
 the library code does not change - once you have your project tests passing, you do not want you code changing
 You can fix the library code in your project, reducing your debug cycle,  staying focused on your project, 
 
 
-
-### Packaged projects?
-
-package project cycle:
-
-* while debugging `my_project` 
-* you see a bug in `my_library` code
-* you switch to the `my_library` project
-* you change the `my_library` code
-* you package `my_library`
-* you update `my_library` package in `my_project`
-* you resume debugging `my_project`
-
-
 ## Solution: Two version control systems
 
 Your projects are managed with one vcs, and your libraries are synched with another vcs. In this document we will assume Git and Subversion respectively.  Each has particular properties that are well suited to managing libraries in the manner   
 
-
-
-
-
 You can use this technique on all your vendor libraries. It helps especially when your vendor code lacks comprehensive tests: Each project that uses you vendor library effectively acts as a test suite.
-
-
 
 ## Overview
 
 We will use the following directory pattern to allow both vcs' to track the project and library code. This will be explained in more detail below.
 
+
 ```
-my-project
+Project-1
   |
   +- .git
   |
-  +-- my_project
+  +-- Project_1
   |
   +-- vendor 
   |    |
-  |    +-- my_library
+  |    +-- Library_1
+  |    |     |
+  |    |     +-- .svn
+  |    |
+  |    +-- Library_2
   |          |
   |          +-- .svn
   |
@@ -90,8 +127,8 @@ my-project
 
 Please notice 
 
-* projects are named with dashes (`-`), eg `my-project`
-* code subdirectories are named with underscore (`_`), eg `my_project`
+* projects are named with dashes (`-`), eg `Project-1`
+* code subdirectories are named with underscore (`_`), eg `Project_1`
 
 ### Project Setup
 
@@ -117,12 +154,14 @@ make a new `svn` repo to track the `vendor/my_library` directory
 ### Project Synchronization
 
 If you have two projects with vendored `my_library` you probably will want to occasionally synch them:
- 
+
+<img src="library-versioning-two-projects.png" style="width:410">
+
 Ensure you are on `dev` branch
 
     git checkout dev
 
-Update libary with changes from other projects
+Update library with changes from other projects
 
 	svn update --accept p vendor/my_library
 
@@ -176,7 +215,10 @@ Please notice that only the code is tracked with Subversion.
 
 Syncing a library is much like syncing a vendor directory.
 
-Ensure you are on `dev` branch
+<img src="library-versioning-library.png" style="width:353">
+
+
+Ensure you are on `dev` branch      
 
     git checkout dev
 
@@ -194,5 +236,13 @@ Ensure you push your library updates to Subversion so other projects can use it
 
     svn commit my_library -m "lib updates"
 
+## Distributed Library Propagation
 
+A system of two svn tools allows third party projects to propagate libray updates 
+
+<img src="library-versioning-propagation.png" style="width:391">
+
+
+
+  
 

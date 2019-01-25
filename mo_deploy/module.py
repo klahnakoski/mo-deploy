@@ -11,8 +11,11 @@ from __future__ import unicode_literals
 
 from collections import Mapping
 
+from mo_collections import UniqueIndex
+from mo_collections.index import Index
+
 import mo_json_config
-from mo_deploy.utils import parse_req
+from mo_deploy.utils import parse_req, Requirement
 from mo_dots import coalesce, wrap
 from mo_files import File
 from mo_future import text_type, sort_using_key, is_text, is_binary
@@ -95,7 +98,7 @@ class Module(object):
             ")"
         )
 
-    @cache(duration=10*SECOND)
+    @cache()
     def last_deploy(self):
         url = "https://pypi.org/pypi/" + self.name + "/json"
         try:
@@ -143,8 +146,8 @@ class Module(object):
         req_file = self.directory / 'requirements.txt'
 
         # CHECK FILES EXISTENCE
-        if setup_file.exists:
-            Log.error("expecting no setup.py file; it will be created from {{tools}}", tools=SETUPTOOLS)
+        # if setup_file.exists:
+        #     Log.error("expecting no setup.py file; it will be created from {{tools}}", tools=SETUPTOOLS)
         if not setup_json.exists:
             Log.error("expecting {{file}} file", file=SETUPTOOLS)
         if not readme.exists:
@@ -176,7 +179,7 @@ class Module(object):
         setup.version = text_type(new_version)
 
         # REQUIRES
-        reqs = self.get_requirements()
+        reqs = self.get_requirements([parse_req(line) for line in setup.install_requires])
         setup.install_requires = [
             r.name + r.type + text_type(r.version) if r.version else r.name
             for r in sort_using_key(reqs, key=lambda rr: rr.name)
@@ -229,27 +232,42 @@ class Module(object):
         except Exception as e:
             Log.error("can not execute {{args}} in dir={{dir|quote}}", args=args, dir=self.directory.abspath, cause=e)
 
-    def get_requirements(self):
-        output = wrap([
-            {
-                "name": req_name,
-                "type": type,
-                "version": version
-            }
-            if req_name not in self.graph.graph or not hasattr(self.graph, "next_version") else
-            {
-                "name": req_name,
-                "type": ">=",
-                "version": self.graph.get_version(req_name)
-            }
-            for line in (self.directory / "requirements.txt").read_lines()
-            for req_name, type, version in [parse_req(line)]
+    def get_requirements(self, current_requires):
+        # MAP FROM NAME TO CURRENT LIMITS
+        lookup_old_requires = UniqueIndex(data=current_requires, keys="name")
+
+        req = self.directory / "requirements.txt"
+        output = wrap([  # TODO: improve this, keep version numbers from json file so that they only increase
+            r & lookup_old_requires[r.name]
+            if r.name not in self.graph.graph or not hasattr(self.graph, "next_version") else
+            Requirement(
+                name=r.name,
+                type="==",
+                version=self.graph.get_version(r.name)  # ALREADY THE MAX
+            )
+            for line in req.read_lines()
+            for r in [parse_req(line)]
         ])
+
+        # test_req = self.directory / "tests" / "requirements.txtx"
+        # if test_req.exists:
+        #     output.extend([  # TODO: improve this, keep version numbers from json file so that they only increase
+        #         r & lookup_old_requires[r.name]
+        #         if r.name not in self.graph.graph or not hasattr(self.graph, "next_version") else
+        #         Requirement(
+        #             name=r.name,
+        #             type="==",
+        #             version=self.graph.get_version(r.name)  # ALREADY THE MAX
+        #         )
+        #         for line in test_req.read_lines()
+        #         for r in [parse_req(line)]
+        #     ])
+
         if any("_" in r.name for r in output):
             Log.error("found problem in {{module}}", module=self.name)
         return output
 
-    @cache(duration=10*SECOND)
+    @cache()
     def get_version(self):
         # RETURN version, revision PAIR
         p, stdout, stderr = self.local("list tags", ["git", "tag"])
@@ -281,6 +299,7 @@ class Module(object):
                 revision = line.split("commit")[1].strip()
                 return revision
 
+    @cache()
     def can_upgrade(self):
         # get current version, hash
         version, revision = self.get_version()

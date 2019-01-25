@@ -6,20 +6,21 @@
 #
 # Author: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
-from __future__ import division
-from __future__ import unicode_literals
+from __future__ import division, unicode_literals
 
-from mo_dots import coalesce
 from toposort import toposort
 
 from mo_deploy.module import Module
+from mo_deploy.utils import Requirement
+from mo_dots import listwrap
 from mo_logs import Log
 from mo_math import UNION
+from mo_threads import Lock, Thread
 
 
 class ModuleGraph(object):
 
-    def __init__(self, module_directories):
+    def __init__(self, module_directories, deploy):
         graph = self.graph = {}
         versions = self.versions = {}
 
@@ -29,21 +30,59 @@ class ModuleGraph(object):
             for m in [Module(d, self)]
         }
 
-        for m in self.modules.values():
+        graph_lock = Lock()
+
+        def info(m, please_stop):
             module_name = m.name
             # FIND DEPENDENCIES FOR EACH MODULE
             graph[module_name] = set()
             versions[module_name] = m.get_version()[0]
 
-            for req in m.get_requirements():
-                graph[module_name].add(req.name)
+            for req in m.get_requirements([Requirement(k, ">=", v) for k, v in versions.items()]):
+                with graph_lock:
+                    graph[module_name].add(req.name)
+
+        for t in [
+            Thread.run(m.name, info, m)
+            for m in self.modules.values()
+        ]:
+            t.join()
         self.toposort = list(toposort(graph))
+
+        def closure(parents):
+            prev = set()
+            dependencies = set(listwrap(parents))
+            while dependencies - prev:
+                prev = dependencies
+                for d in list(dependencies):
+                    dependencies |= graph[d]
+            return dependencies
+
+        # CALCULATE ALL DEPENDENCIES FOR EACH
+        for m in list(graph.keys()):
+            graph[m] = closure(m)
+        deploy_dependencies = [self.modules[d] for d in closure(deploy)]
+
+        # PREFETCH SOM MODULE STATUS
+        def pre_fetch_state(d, please_stop):
+            d.can_upgrade()
+            d.last_deploy()
+
+        for t in [
+            Thread.run(d.name, pre_fetch_state, d)
+            for d in deploy_dependencies
+        ]:
+            t.join()
 
         # WHAT MODULES NEED UPDATE?
         candidates_for_update = [
             m
-            for m in self.modules.values()
-            if m.can_upgrade() or m.last_deploy() < m.get_version()[0]
+            for m in deploy_dependencies
+            if any(
+                d.can_upgrade() or d.last_deploy() < d.get_version()[0]
+                for x in graph[m.name]
+                for d in [self.modules[x]]
+            )
         ]
 
         Log.alert("Changed modules: {{modules}}", modules=[c.name for c in candidates_for_update])

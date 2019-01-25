@@ -8,7 +8,6 @@
 #
 from __future__ import absolute_import, division, unicode_literals
 
-from mo_future import is_text, is_binary
 import os
 import subprocess
 
@@ -21,12 +20,14 @@ from mo_threads.queues import Queue
 from mo_threads.signal import Signal
 from mo_threads.threads import THREAD_STOP, Thread
 from mo_threads.till import Till
+from mo_times import Timer
 
-DEBUG = False
+DEBUG = True
 
 
 class Process(object):
     def __init__(self, name, params, cwd=None, env=None, debug=False, shell=False, bufsize=-1):
+        self.age = DEBUG and Timer(name).__enter__()
         self.name = name
         self.service_stopped = Signal("stopped signal for " + strings.quote(name))
         self.stdin = Queue("stdin for process " + strings.quote(name), silent=True)
@@ -71,19 +72,23 @@ class Process(object):
         self.please_stop.go()
 
     def join(self, raise_on_error=False):
-        self.service_stopped.wait()
-        with self.thread_locker:
-            child_threads, self.children = self.children, []
-        for c in child_threads:
-            c.join()
-        if raise_on_error and self.returncode != 0:
-            Log.error(
-                "{{process}} FAIL: returncode={{code}}\n{{stderr}}",
-                process=self.name,
-                code=self.service.returncode,
-                stderr=list(self.stderr)
-            )
-        return self
+        try:
+            self.service_stopped.wait()
+            with self.thread_locker:
+                child_threads, self.children = self.children, []
+            for c in child_threads:
+                c.join()
+            if raise_on_error and self.returncode != 0:
+                Log.error(
+                    "{{process}} FAIL: returncode={{code}}\n{{stderr}}",
+                    process=self.name,
+                    code=self.service.returncode,
+                    stderr=list(self.stderr)
+                )
+            return self
+        finally:
+            if DEBUG:
+                self.age.__exit__(None, None, None)
 
     def remove_child(self, child):
         with self.thread_locker:

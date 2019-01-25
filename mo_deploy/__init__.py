@@ -35,7 +35,7 @@ def main():
         Module.pip = coalesce(settings.pip, Module.pip)
         Module.twine = coalesce(settings.twine, Module.twine)
 
-        graph = ModuleGraph(listwrap(settings.modules))
+        graph = ModuleGraph(listwrap(settings.managed), settings.deploy)
 
         if not graph.todo:
             Log.note("No modules need to deploy")
