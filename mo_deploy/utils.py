@@ -38,9 +38,7 @@ class Requirement(object):
                 return self
             elif _op_to_func[other.type](other.version, self.version):
                 return Requirement(
-                    name=self.name,
-                    type="==",
-                    version=max(self.version, other.version)
+                    name=self.name, type="==", version=max(self.version, other.version)
                 )
             else:
                 return self
@@ -81,5 +79,5 @@ _op_to_func = {
     ">=": operator.ge,
     "==": operator.eq,
     "<=": operator.le,
-    "<": operator.lt
+    "<": operator.lt,
 }

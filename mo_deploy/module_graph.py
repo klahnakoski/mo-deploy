@@ -20,15 +20,12 @@ from mo_threads.threads import AllThread
 
 
 class ModuleGraph(object):
-
     def __init__(self, module_directories, deploy):
         graph = self.graph = {}
         versions = self.versions = {}
 
         self.modules = {
-            m.name: m
-            for d in module_directories
-            for m in [Module(d, self)]
+            m.name: m for d in module_directories for m in [Module(d, self)]
         }
 
         graph_lock = Lock()
@@ -39,7 +36,9 @@ class ModuleGraph(object):
             graph[module_name] = set()
             versions[module_name] = m.get_version()[0]
 
-            for req in m.get_requirements([Requirement(k, ">=", v) for k, v in versions.items()]):
+            for req in m.get_requirements(
+                [Requirement(k, ">=", v) for k, v in versions.items()]
+            ):
                 with graph_lock:
                     graph[module_name].add(req.name)
 
@@ -61,9 +60,14 @@ class ModuleGraph(object):
         # CALCULATE ALL DEPENDENCIES FOR EACH
         for m in list(graph.keys()):
             graph[m] = closure(m)
-        deploy_dependencies = [self.modules[d] for d in closure(deploy) if d in self.modules]
+        deploy_dependencies = [
+            self.modules[d] for d in closure(deploy) if d in self.modules
+        ]
 
-        Log.note("Required modules {{modules}}", modules=[m.name for m in deploy_dependencies])
+        Log.note(
+            "Required modules {{modules}}",
+            modules=[m.name for m in deploy_dependencies],
+        )
 
         # PREFETCH SOM MODULE STATUS
         def pre_fetch_state(d, please_stop):
@@ -86,7 +90,6 @@ class ModuleGraph(object):
         ]
         self.todo = self._sorted(self.todo_names)
         self.todo_names = [t.name for t in self.todo]
-
 
         if not self.todo:
             self.next_version = max(versions.values())
@@ -114,7 +117,13 @@ class ModuleGraph(object):
         # FIND FIXPOINT
         while num < len(dependencies):
             num = len(dependencies)
-            dependencies = UNION([dependencies] + [set(m for r in reqs if r in dependencies) for m, reqs in self.graph.items()])
+            dependencies = UNION(
+                [dependencies]
+                + [
+                    set(m for r in reqs if r in dependencies)
+                    for m, reqs in self.graph.items()
+                ]
+            )
 
         return self._sorted(dependencies)
 
@@ -142,4 +151,3 @@ class ModuleGraph(object):
             for module in sorted(batch)
             if module in candidates
         ]
-
