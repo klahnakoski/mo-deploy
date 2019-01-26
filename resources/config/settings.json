@@ -25,7 +25,7 @@
         "c:/users/kyle/code/mo-deploy"
     ],
     "deploy": [
-//        "mo-dots"
+//        "mo-logs"
         "jx-python"
     ],
     "constants":{

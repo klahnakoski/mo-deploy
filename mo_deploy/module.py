@@ -6,24 +6,20 @@
 #
 # Author: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
-from __future__ import division
-from __future__ import unicode_literals
+from __future__ import division, unicode_literals
 
 from collections import Mapping
 
 from mo_collections import UniqueIndex
-from mo_collections.index import Index
-
-import mo_json_config
-from mo_deploy.utils import parse_req, Requirement
+from mo_deploy.utils import Requirement, parse_req
 from mo_dots import coalesce, wrap
 from mo_files import File
-from mo_future import text_type, sort_using_key, is_text, is_binary
+from mo_future import is_binary, is_text, sort_using_key, text_type
 from mo_json import value2json
-from mo_logs import Log, Except
+import mo_json_config
+from mo_logs import Except, Log
 from mo_math.randoms import Random
 from mo_threads import Process
-from mo_times import SECOND
 from pyLibrary.env import http
 from pyLibrary.meta import cache
 from pyLibrary.utils import Version
@@ -69,20 +65,20 @@ class Module(object):
             self.update_master_locally(self.graph.next_version)
             self.gen_setup_file()
             self.pypi()
-            self.local("git", [self.git, "push", "origin", self.master_branch])
+            self.local([self.git, "push", "origin", self.master_branch])
         except Exception as e:
             e = Except.wrap(e)
-            self.local("git", [self.git, "checkout", master_rev])
-            self.local("git", [self.git, "tag", "--delete", "v" + text_type(self.graph.next_version)], raise_on_error=False)
-            self.local("git", [self.git, "branch", "-D", self.master_branch], raise_on_error=False)
-            self.local("git", [self.git, "checkout", "-b", self.master_branch])
+            self.local([self.git, "checkout", master_rev])
+            self.local([self.git, "tag", "--delete", "v" + text_type(self.graph.next_version)], raise_on_error=False)
+            self.local([self.git, "branch", "-D", self.master_branch], raise_on_error=False)
+            self.local([self.git, "checkout", "-b", self.master_branch])
             Log.error("Can not deploy", cause=e)
         finally:
-            self.local("git", [self.git, "checkout", self.dev_branch])
+            self.local([self.git, "checkout", self.dev_branch])
 
     def setup(self):
-        self.local("git", [self.git, "checkout", self.dev_branch])
-        self.local("git", [self.git, "merge", self.master_branch])
+        self.local([self.git, "checkout", self.dev_branch])
+        self.local([self.git, "merge", self.master_branch])
 
     def gen_setup_file(self):
         setup_file = self.directory / 'setup.py'
@@ -120,10 +116,10 @@ class Module(object):
             self.scrub_pypi_residue()
 
             Log.note("run setup.py")
-            self.local("pypi", [self.python, "setup.py", "sdist"], raise_on_error=True)
+            self.local([self.python, "setup.py", "sdist"], raise_on_error=True)
 
             Log.note("twine upload of {{dir}}", dir=self.directory.abspath)
-            process, stdout, stderr = self.local("twine", [self.twine, "upload", "dist/*"], raise_on_error=False, show_all=True)
+            process, stdout, stderr = self.local([self.twine, "upload", "dist/*"], raise_on_error=False, show_all=True)
             if "Upload failed (400): File already exists." in stderr:
                 Log.error("Version exists. Not uploaded")
             elif "error: <urlopen error [Errno 11001] getaddrinfo failed>" in stderr:
@@ -189,45 +185,45 @@ class Module(object):
         setup_json.write(value2json(setup, pretty=True))
 
     def svn_update(self):
-        self.local("git", [self.git, "checkout", self.dev_branch])
+        self.local([self.git, "checkout", self.dev_branch])
 
         for d in self.directory.find(r"\.svn"):
             svn_dir = d.parent.abspath
             Log.note("Update svn directory {{dir}}", dir=svn_dir)
-            self.local("svn", [self.svn, "update", "--accept", "p", svn_dir])
-            self.local("svn", [self.svn, "commit", svn_dir, "-m", "auto"])
+            self.local([self.svn, "update", "--accept", "p", svn_dir])
+            self.local([self.svn, "commit", svn_dir, "-m", "auto"])
 
     def update_dev(self, message):
         Log.note("Update git dev branch for {{dir}}", dir=self.directory.abspath)
         self.scrub_pypi_residue()
-        self.local("git", [self.git, "add", "-A"])
-        process, stdout, stderr = self.local("git", [self.git, "commit", "-m", message], raise_on_error=False)
+        self.local([self.git, "add", "-A"])
+        process, stdout, stderr = self.local([self.git, "commit", "-m", message], raise_on_error=False)
         if "nothing to commit, working directory clean" in stdout or process.returncode == 0:
             pass
         else:
             Log.error("not expected {{result}}", result=(stdout, stderr))
         try:
-            self.local("git", [self.git, "push", "origin", self.dev_branch])
+            self.local([self.git, "push", "origin", self.dev_branch])
         except Exception as e:
             Log.warning("git origin dev not updated for {{dir}}", dir=self.directory.name, cause=e)
 
     def update_master_locally(self, version):
         Log.note("Update git master branch for {{dir}}", dir=self.directory.abspath)
         try:
-            self.local("git", [self.git, "checkout", self.master_branch])
-            self.local("git", [self.git, "merge", "--no-ff", self.dev_branch])
-            self.local("tag", [self.git, "tag", "v" + text_type(version)])
+            self.local([self.git, "checkout", self.master_branch])
+            self.local([self.git, "merge", "--no-ff", self.dev_branch])
+            self.local([self.git, "tag", "v" + text_type(version)])
         except Exception as e:
             Log.error("git origin master not updated for {{dir}}", dir=self.directory.name, cause=e)
 
-    def local(self, cmd, args, raise_on_error=True, show_all=False, cwd=None):
+    def local(self, args, raise_on_error=True, show_all=False, cwd=None):
         try:
-            p = Process(cmd, args, cwd=coalesce(cwd, self.directory)).join(raise_on_error=raise_on_error)
+            p = Process(self.name, args, cwd=coalesce(cwd, self.directory)).join(raise_on_error=raise_on_error)
             stdout = list(v.decode('latin1') for v in p.stdout)
             stderr = list(v.decode('latin1') for v in p.stderr)
+            p.join()
             if show_all:
                 Log.note("{{module}} stdout = {{stdout}}\nstderr = {{stderr}}", module=self.name, stdout=stdout, stderr=stderr, stack_depth=1)
-            p.join()
             return p, stdout, stderr
         except Exception as e:
             Log.error("can not execute {{args}} in dir={{dir|quote}}", args=args, dir=self.directory.abspath, cause=e)
@@ -270,12 +266,12 @@ class Module(object):
     @cache()
     def get_version(self):
         # RETURN version, revision PAIR
-        p, stdout, stderr = self.local("list tags", ["git", "tag"])
+        p, stdout, stderr = self.local(["git", "tag"])
         all_versions = [Version(line.lstrip('v')) for line in stdout]
 
         if all_versions:
             version = max(all_versions)
-            p, stdout, stderr = self.local("get tagged rev", [self.git, "show", "v"+text_type(version)])
+            p, stdout, stderr = self.local([self.git, "show", "v"+text_type(version)])
             for line in stdout:
                 if line.startswith("commit "):
                     revision = line.split("commit")[1].strip()
@@ -286,14 +282,14 @@ class Module(object):
         return version, revision
 
     def master_revision(self):
-        p, stdout, stderr = self.local("get current rev", [self.git, "log", self.master_branch, "-1"])
+        p, stdout, stderr = self.local([self.git, "log", self.master_branch, "-1"])
         for line in stdout:
             if line.startswith("commit "):
                 revision = line.split("commit")[1].strip()
                 return revision
 
     def current_revision(self):
-        p, stdout, stderr = self.local("get current rev", [self.git, "log", "-1"])
+        p, stdout, stderr = self.local([self.git, "log", "-1"])
         for line in stdout:
             if line.startswith("commit "):
                 revision = line.split("commit")[1].strip()
@@ -301,32 +297,31 @@ class Module(object):
 
     @cache()
     def can_upgrade(self):
+        ignored_files = ['setup.py']
+
         # get current version, hash
         version, revision = self.get_version()
         self.svn_update()
         self.update_dev("updates from other projects")
-
         # COMPARE TO MASTER
         branch_name = Random.string(10)
-        self.local("git", [self.git, "checkout", "-b", branch_name, self.master_branch])
+        self.local([self.git, "checkout", "-b", branch_name, self.master_branch])
         try:
-            self.local("git", [self.git, "merge", "--no-commit", self.dev_branch])
-            for i in ['setup.py']:  # IGNORE THIS WHEN CHECKING FOR DEPLOY CHANGES
-                self.local("git", [self.git, "reset", "HEAD", i], raise_on_error=False)
-                self.local("git", [self.git, "checkout", "--", i], raise_on_error=False)
-            self.local("git", [self.git, "commit", "-m", "merge from "+self.dev_branch])
-            p, stdout, error = self.local("git", [self.git, "diff", "master"])
-            if any(l.strip() for l in stdout):
+            self.local([self.git, "merge", self.dev_branch])
+            p, stdout, stderr = self.local([self.git, "--no-pager", "diff", "--name-only", "master"])
+            if any(l.strip() for l in stdout if l not in ignored_files):
+                Log.note("{{num}} files changed", num=len(stdout))
                 curr_revision = self.current_revision()
             else:
                 curr_revision = revision
-            self.local("git", [self.git, "checkout", "-f", self.dev_branch])
-        except Exception:
-            self.local("git", [self.git, "reset", "--hard", "HEAD"])
-            self.local("git", [self.git, "checkout", "-f", self.dev_branch])
+            self.local([self.git, "checkout", "-f", self.dev_branch])
+        except Exception as e:
+            Log.warning("problem determining upgrade status", cause=e)
+            self.local([self.git, "reset", "--hard", "HEAD"])
+            self.local([self.git, "checkout", "-f", self.dev_branch])
             curr_revision = self.current_revision()
         finally:
-            self.local("git", [self.git, "branch", "-D", branch_name])
+            self.local([self.git, "branch", "-D", branch_name])
 
         return curr_revision != revision
 
