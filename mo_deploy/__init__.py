@@ -6,12 +6,12 @@
 #
 # Author: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
-from __future__ import division
-from __future__ import unicode_literals
+from __future__ import division, unicode_literals
 
 from mo_deploy.module import Module
 from mo_deploy.module_graph import ModuleGraph
 from mo_dots import coalesce, listwrap
+from mo_future import input
 from mo_logs import Log, constants, startup
 
 
@@ -42,7 +42,7 @@ def main():
         if not graph.todo:
             Log.note("No modules need to deploy")
             return
-
+        input("Press <Enter> to continue ...")
         for m in graph.todo:
             Log.alert("DEPLOY {{module|upper}}", module=m.name)
             m.deploy()

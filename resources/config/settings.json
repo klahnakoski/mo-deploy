@@ -22,10 +22,10 @@
         "c:/users/kyle/code/jx-python",
         "c:/Users/kyle/code/moz-sql-parser",
         "c:/users/kyle/code/mo-hg",
-        "c:/users/kyle/code/mo-deploy",
-        "c:/users/kyle/code/mo-parquet",
+//        "c:/users/kyle/code/mo-deploy",
+//        "c:/users/kyle/code/mo-parquet",
     ],
-    "deploy": ["pyLibrary"],
+    "deploy": ["mo-logs"],
     "constants": {
         "pyLibrary.env.http.default_headers": {
             "Referer": "https://github.com/klahnakoski/mo-deploy"

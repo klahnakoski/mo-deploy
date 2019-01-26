@@ -85,6 +85,7 @@ class ModuleGraph(object):
             if any(
                 d.can_upgrade() or d.last_deploy() < d.get_version()[0]
                 for x in graph[m.name]
+                if x in self.modules
                 for d in [self.modules[x]]
             )
         ]
