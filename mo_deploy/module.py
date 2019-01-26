@@ -149,7 +149,7 @@ class Module(object):
         # if setup_file.exists:
         #     Log.error("expecting no setup.py file; it will be created from {{tools}}", tools=SETUPTOOLS)
         if not setup_json.exists:
-            Log.error("expecting {{file}} file", file=SETUPTOOLS)
+            Log.error("expecting {{file}} file", file=setup_json)
         if not readme.exists:
             Log.error("expecting a README.md file to add to long_description")
         if not req_file.exists:
@@ -226,7 +226,7 @@ class Module(object):
             stdout = list(v.decode('latin1') for v in p.stdout)
             stderr = list(v.decode('latin1') for v in p.stderr)
             if show_all:
-                Log.note("stdout = {{stdout}}\nstderr = {{stderr}}", stdout=stdout, stderr=stderr, stack_depth=1)
+                Log.note("{{module}} stdout = {{stdout}}\nstderr = {{stderr}}", module=self.name, stdout=stdout, stderr=stderr, stack_depth=1)
             p.join()
             return p, stdout, stderr
         except Exception as e:
@@ -242,7 +242,7 @@ class Module(object):
             if r.name not in self.graph.graph or not hasattr(self.graph, "next_version") else
             Requirement(
                 name=r.name,
-                type="==",
+                type=">=",
                 version=self.graph.get_version(r.name)  # ALREADY THE MAX
             )
             for line in req.read_lines()
@@ -256,7 +256,7 @@ class Module(object):
         #         if r.name not in self.graph.graph or not hasattr(self.graph, "next_version") else
         #         Requirement(
         #             name=r.name,
-        #             type="==",
+        #             type=">=",
         #             version=self.graph.get_version(r.name)  # ALREADY THE MAX
         #         )
         #         for line in test_req.read_lines()
@@ -310,14 +310,22 @@ class Module(object):
         branch_name = Random.string(10)
         self.local("git", [self.git, "checkout", "-b", branch_name, self.master_branch])
         try:
-            self.local("git", [self.git, "merge", self.dev_branch])
-            curr_revision = self.current_revision()
+            self.local("git", [self.git, "merge", "--no-commit", self.dev_branch])
+            for i in ['setup.py']:  # IGNORE THIS WHEN CHECKING FOR DEPLOY CHANGES
+                self.local("git", [self.git, "reset", "HEAD", i], raise_on_error=False)
+                self.local("git", [self.git, "checkout", "--", i], raise_on_error=False)
+            self.local("git", [self.git, "commit", "-m", "merge from "+self.dev_branch])
+            p, stdout, error = self.local("git", [self.git, "diff", "master"])
+            if any(l.strip() for l in stdout):
+                curr_revision = self.current_revision()
+            else:
+                curr_revision = revision
+            self.local("git", [self.git, "checkout", "-f", self.dev_branch])
         except Exception:
             self.local("git", [self.git, "reset", "--hard", "HEAD"])
-            self.local("git", [self.git, "checkout", self.dev_branch])
+            self.local("git", [self.git, "checkout", "-f", self.dev_branch])
             curr_revision = self.current_revision()
         finally:
-            self.local("git", [self.git, "checkout", self.dev_branch])
             self.local("git", [self.git, "branch", "-D", branch_name])
 
         return curr_revision != revision

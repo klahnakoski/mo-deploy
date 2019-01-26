@@ -15,7 +15,8 @@ from mo_deploy.utils import Requirement
 from mo_dots import listwrap
 from mo_logs import Log
 from mo_math import UNION
-from mo_threads import Lock, Thread
+from mo_threads import Lock
+from mo_threads.threads import AllThread
 
 
 class ModuleGraph(object):
@@ -42,11 +43,10 @@ class ModuleGraph(object):
                 with graph_lock:
                     graph[module_name].add(req.name)
 
-        for t in [
-            Thread.run(m.name, info, m)
-            for m in self.modules.values()
-        ]:
-            t.join()
+        with AllThread() as a:
+            for m in self.modules.values():
+                a.run(m.name, info, m)
+
         self.toposort = list(toposort(graph))
 
         def closure(parents):
@@ -63,20 +63,20 @@ class ModuleGraph(object):
             graph[m] = closure(m)
         deploy_dependencies = [self.modules[d] for d in closure(deploy)]
 
+        Log.note("Required modules {{modules}}", modules=[m.name for m in deploy_dependencies])
+
         # PREFETCH SOM MODULE STATUS
         def pre_fetch_state(d, please_stop):
             d.can_upgrade()
             d.last_deploy()
 
-        for t in [
-            Thread.run(d.name, pre_fetch_state, d)
-            for d in deploy_dependencies
-        ]:
-            t.join()
+        with AllThread() as a:
+            for d in deploy_dependencies:
+                a.run(d.name, pre_fetch_state, d)
 
         # WHAT MODULES NEED UPDATE?
-        candidates_for_update = [
-            m
+        self.todo_names = [
+            m.name
             for m in deploy_dependencies
             if any(
                 d.can_upgrade() or d.last_deploy() < d.get_version()[0]
@@ -84,11 +84,9 @@ class ModuleGraph(object):
                 for d in [self.modules[x]]
             )
         ]
+        self.todo = self._sorted(self.todo_names)
+        self.todo_names = [t.name for t in self.todo]
 
-        Log.alert("Changed modules: {{modules}}", modules=[c.name for c in candidates_for_update])
-
-        self.todo = self.get_dependencies(candidates_for_update)
-        self.todo_names = set(t.name for t in self.todo)
 
         if not self.todo:
             self.next_version = max(versions.values())
@@ -134,7 +132,10 @@ class ModuleGraph(object):
         return self._sorted(requirements)
 
     def _sorted(self, candidates):
-        # RETURN THEM IN CANONICAL ORDER
+        """
+        :param candidates:  list of module name
+        :return: modules in canonical topological order
+        """
         return [
             self.modules[module]
             for batch in self.toposort

@@ -42,6 +42,7 @@ def main():
             return
 
         for m in graph.todo:
+            Log.alert("DEPLOY {{module|upper}}", module=m.name)
             m.deploy()
 
     except Exception as e:
