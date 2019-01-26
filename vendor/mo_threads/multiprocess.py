@@ -27,7 +27,6 @@ DEBUG = True
 
 class Process(object):
     def __init__(self, name, params, cwd=None, env=None, debug=False, shell=False, bufsize=-1):
-        self.age = DEBUG and Timer(name).__enter__()
         self.name = name
         self.service_stopped = Signal("stopped signal for " + strings.quote(name))
         self.stdin = Queue("stdin for process " + strings.quote(name), silent=True)
@@ -72,23 +71,19 @@ class Process(object):
         self.please_stop.go()
 
     def join(self, raise_on_error=False):
-        try:
-            self.service_stopped.wait()
-            with self.thread_locker:
-                child_threads, self.children = self.children, []
-            for c in child_threads:
-                c.join()
-            if raise_on_error and self.returncode != 0:
-                Log.error(
-                    "{{process}} FAIL: returncode={{code}}\n{{stderr}}",
-                    process=self.name,
-                    code=self.service.returncode,
-                    stderr=list(self.stderr)
-                )
-            return self
-        finally:
-            if DEBUG:
-                self.age.__exit__(None, None, None)
+        self.service_stopped.wait()
+        with self.thread_locker:
+            child_threads, self.children = self.children, []
+        for c in child_threads:
+            c.join()
+        if raise_on_error and self.returncode != 0:
+            Log.error(
+                "{{process}} FAIL: returncode={{code}}\n{{stderr}}",
+                process=self.name,
+                code=self.service.returncode,
+                stderr=list(self.stderr)
+            )
+        return self
 
     def remove_child(self, child):
         with self.thread_locker:
@@ -106,10 +101,11 @@ class Process(object):
         return self.service.returncode
 
     def _monitor(self, please_stop):
-        self.service.wait()
-        self.debug and Log.note("{{process}} STOP: returncode={{returncode}}", process=self.name, returncode=self.service.returncode)
-        self.service_stopped.go()
-        please_stop.go()
+        with Timer(self.name):
+            self.service.wait()
+            self.debug and Log.note("{{process}} STOP: returncode={{returncode}}", process=self.name, returncode=self.service.returncode)
+            self.service_stopped.go()
+            please_stop.go()
 
     def _reader(self, name, pipe, receive, please_stop):
         try:

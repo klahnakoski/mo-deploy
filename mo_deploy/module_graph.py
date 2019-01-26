@@ -61,7 +61,7 @@ class ModuleGraph(object):
         # CALCULATE ALL DEPENDENCIES FOR EACH
         for m in list(graph.keys()):
             graph[m] = closure(m)
-        deploy_dependencies = [self.modules[d] for d in closure(deploy)]
+        deploy_dependencies = [self.modules[d] for d in closure(deploy) if d in self.modules]
 
         Log.note("Required modules {{modules}}", modules=[m.name for m in deploy_dependencies])
 

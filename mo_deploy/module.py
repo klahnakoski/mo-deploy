@@ -230,11 +230,11 @@ class Module(object):
 
     def get_requirements(self, current_requires):
         # MAP FROM NAME TO CURRENT LIMITS
-        lookup_old_requires = UniqueIndex(data=current_requires, keys="name")
+        lookup_old_requires = {r.name: r for r in current_requires}
 
         req = self.directory / "requirements.txt"
         output = wrap([  # TODO: improve this, keep version numbers from json file so that they only increase
-            r & lookup_old_requires[r.name]
+            r & lookup_old_requires.get(r.name)
             if r.name not in self.graph.graph or not hasattr(self.graph, "next_version") else
             Requirement(
                 name=r.name,
@@ -244,20 +244,6 @@ class Module(object):
             for line in req.read_lines()
             for r in [parse_req(line)]
         ])
-
-        # test_req = self.directory / "tests" / "requirements.txtx"
-        # if test_req.exists:
-        #     output.extend([  # TODO: improve this, keep version numbers from json file so that they only increase
-        #         r & lookup_old_requires[r.name]
-        #         if r.name not in self.graph.graph or not hasattr(self.graph, "next_version") else
-        #         Requirement(
-        #             name=r.name,
-        #             type=">=",
-        #             version=self.graph.get_version(r.name)  # ALREADY THE MAX
-        #         )
-        #         for line in test_req.read_lines()
-        #         for r in [parse_req(line)]
-        #     ])
 
         if any("_" in r.name for r in output):
             Log.error("found problem in {{module}}", module=self.name)

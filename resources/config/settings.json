@@ -22,16 +22,14 @@
         "c:/users/kyle/code/jx-python",
         "c:/Users/kyle/code/moz-sql-parser",
         "c:/users/kyle/code/mo-hg",
-        "c:/users/kyle/code/mo-deploy"
+        "c:/users/kyle/code/mo-deploy",
+        "c:/users/kyle/code/mo-parquet",
     ],
-    "deploy": [
-//        "mo-logs"
-        "jx-python"
-    ],
-    "constants":{
-        "pyLibrary.env.http.default_headers": {"Referer":"https://github.com/klahnakoski/mo-deploy"}
+    "deploy": ["pyLibrary"],
+    "constants": {
+        "pyLibrary.env.http.default_headers": {
+            "Referer": "https://github.com/klahnakoski/mo-deploy"
+        }
     },
-    "debug": {
-        "trace": true
-    }
+    "debug": {"trace": true},
 }
