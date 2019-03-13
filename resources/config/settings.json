@@ -20,12 +20,13 @@
         "c:/users/kyle/code/pyLibrary",
         "c:/users/kyle/code/jx-sqlite",
         "c:/users/kyle/code/jx-python",
+        "c:/users/kyle/code/jx-elasticsearch",
         "c:/Users/kyle/code/moz-sql-parser",
         "c:/users/kyle/code/mo-hg",
 //        "c:/users/kyle/code/mo-deploy",
 //        "c:/users/kyle/code/mo-parquet",
     ],
-    "deploy": ["mo-logs"],
+    "deploy": ["jx-elasticsearch"],
     "constants": {
         "pyLibrary.env.http.default_headers": {
             "Referer": "https://github.com/klahnakoski/mo-deploy"

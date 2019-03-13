@@ -10,7 +10,6 @@ from __future__ import division, unicode_literals
 
 from collections import Mapping
 
-from mo_collections import UniqueIndex
 from mo_deploy.utils import Requirement, parse_req
 from mo_dots import coalesce, wrap
 from mo_files import File
@@ -61,6 +60,7 @@ class Module(object):
         master_rev = self.master_revision()
         try:
             self.update_setup_file(self.graph.next_version)
+            self.local([self.python, "-c", "from " + self.name.replace("-", "_") + " import __deploy__; __deploy__()"], raise_on_error=False)
             self.update_dev("update version number")
             self.update_master_locally(self.graph.next_version)
             self.gen_setup_file()
@@ -277,20 +277,18 @@ class Module(object):
         lookup_old_requires = {r.name: r for r in current_requires}
 
         req = self.directory / "requirements.txt"
-        output = wrap(
-            [  # TODO: improve this, keep version numbers from json file so that they only increase
-                r & lookup_old_requires.get(r.name)
-                if r.name not in self.graph.graph
-                or not hasattr(self.graph, "next_version")
-                else Requirement(
-                    name=r.name,
-                    type=">=",
-                    version=self.graph.get_version(r.name),  # ALREADY THE MAX
-                )
-                for line in req.read_lines()
-                for r in [parse_req(line)]
-            ]
-        )
+        output = wrap([  # TODO: improve this, keep version numbers from json file so that they only increase
+            r & lookup_old_requires.get(r.name)
+            if r.name not in self.graph.graph or not hasattr(self.graph, "next_version")
+            else Requirement(
+                name=r.name,
+                type=">=",
+                version=self.graph.get_version(r.name),  # ALREADY THE MAX
+            )
+            for line in req.read_lines()
+            if line
+            for r in [parse_req(line)]
+        ])
 
         if any("_" in r.name for r in output):
             Log.error("found problem in {{module}}", module=self.name)

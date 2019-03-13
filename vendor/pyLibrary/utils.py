@@ -8,12 +8,10 @@
 #
 from __future__ import division, unicode_literals
 
-from mo_future import is_text, is_binary, zip_longest
 import datetime
 
-from mo_dots import Null, unwrap, DataObject
-from mo_future import text_type
-from mo_logs import Log
+from mo_dots import DataObject, Null, unwrap
+from mo_future import text_type, zip_longest
 
 
 class Version(object):

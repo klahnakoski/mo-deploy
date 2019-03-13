@@ -4,7 +4,7 @@
 This document details my process for managing many libraries used in many projects, and keeping the code in sync across all the combinations.
 
 
-## Source code is wonderful! Use it. Own it. 
+## Source code is wonderful! Use it.
 
 This document assumes source code is useful, and is an effort multiplier to those that are familiar with the code.
 
@@ -87,7 +87,7 @@ Project_1
 
 Here is a diagram of a git repo, with three branches, each with (some version of) library code 
 
-<img src="library-versioning-one-project.png" style="width:226">
+<img src="library-versioning-one-project.png" style="width:226px">
 
 
 the library code does not change - once you have your project tests passing, you do not want you code changing
@@ -155,7 +155,7 @@ make a new `svn` repo to track the `vendor/my_library` directory
 
 If you have two projects with vendored `my_library` you probably will want to occasionally synch them:
 
-<img src="library-versioning-two-projects.png" style="width:410">
+<img src="library-versioning-two-projects.png" style="width:410px">
 
 Ensure you are on `dev` branch
 
@@ -215,7 +215,7 @@ Please notice that only the code is tracked with Subversion.
 
 Syncing a library is much like syncing a vendor directory.
 
-<img src="library-versioning-library.png" style="width:353">
+<img src="library-versioning-library.png" style="width:353px">
 
 
 Ensure you are on `dev` branch      
@@ -240,9 +240,8 @@ Ensure you push your library updates to Subversion so other projects can use it
 
 A system of two svn tools allows third party projects to propagate libray updates 
 
-<img src="library-versioning-propagation.png" style="width:391">
+<img src="library-versioning-propagation.png" style="width:391px">
 
-
-
+In the diagram above, we can assume there are two programmers (1 and 2), each with thier own local SVN repository containing shared libraries they use. After programmer1 updates `project2`, programmer3 can pickup that change and transfer it to `project3`. 
   
 

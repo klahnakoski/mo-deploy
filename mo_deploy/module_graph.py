@@ -82,12 +82,7 @@ class ModuleGraph(object):
         self.todo_names = [
             m.name
             for m in deploy_dependencies
-            if any(
-                d.can_upgrade() or d.last_deploy() < d.get_version()[0]
-                for x in graph[m.name]
-                if x in self.modules
-                for d in [self.modules[x]]
-            )
+            if m.can_upgrade() or m.last_deploy() < m.get_version()[0]
         ]
         self.todo = self._sorted(self.todo_names)
         self.todo_names = [t.name for t in self.todo]
