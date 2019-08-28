@@ -73,6 +73,9 @@ Your projects are managed with one vcs, and your libraries are synched with anot
 
 You can use this technique on all your vendor libraries. It helps especially when your vendor code lacks comprehensive tests: Each project that uses your vendor library effectively acts as a test suite.
 
+> **This technique is only needed if you are synchronizing the libraries of more then one project. Contributors to your project, and anyone not maintaining the library need not know about this**
+
+
 ## Overview
 
 We will use the following directory pattern to allow both vcs' to track the project and library code. This will be explained in more detail below.

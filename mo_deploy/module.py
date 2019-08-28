@@ -18,7 +18,7 @@ from mo_json import value2json
 import mo_json_config
 from mo_logs import Except, Log
 from mo_math.randoms import Random
-from mo_threads import Process
+from mo_threads.multiprocess import Command
 from pyLibrary.env import http
 from pyLibrary.meta import cache
 from pyLibrary.utils import Version
@@ -68,7 +68,7 @@ class Module(object):
             self.local([self.git, "push", "origin", self.master_branch])
         except Exception as e:
             e = Except.wrap(e)
-            self.local([self.git, "checkout", master_rev])
+            self.local([self.git, "checkout", "-f", master_rev])
             self.local(
                 [self.git, "tag", "--delete", "v" + text_type(self.graph.next_version)],
                 raise_on_error=False,
@@ -115,6 +115,10 @@ class Module(object):
         (
             self.directory / (self.directory.name.replace("-", "_") + ".egg-info")
         ).delete()
+
+        for f in self.directory.leaves:
+            if f.extension == "pyc":
+                f.delete()
 
     def pypi(self):
 
@@ -249,11 +253,11 @@ class Module(object):
 
     def local(self, args, raise_on_error=True, show_all=False, cwd=None):
         try:
-            p = Process(self.name, args, cwd=coalesce(cwd, self.directory)).join(
+            p = Command(self.name, args, cwd=coalesce(cwd, self.directory)).join(
                 raise_on_error=raise_on_error
             )
-            stdout = list(v.decode("latin1") for v in p.stdout)
-            stderr = list(v.decode("latin1") for v in p.stderr)
+            stdout = list(p.stdout)
+            stderr = list(p.stderr)
             p.join()
             if show_all:
                 Log.note(

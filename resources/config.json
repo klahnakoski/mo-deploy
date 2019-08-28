@@ -1,7 +1,7 @@
 {
     "prefix": "mo-",
-    "git": "C:/Program Files/Git/cmd/git.exe",
-    "svn": "C:/Program Files/TortoiseSVN/bin/svn.exe",
+    "git": "C:\\Program Files\\Git\\cmd\\git.exe",
+    "svn": "C:\\Program Files\\TortoiseSVN\\bin\\svn.exe",
     "pip": "pip",
     "managed": [
         "c:/users/kyle/code/mo-future",
@@ -23,10 +23,11 @@
         "c:/users/kyle/code/jx-elasticsearch",
         "c:/Users/kyle/code/moz-sql-parser",
         "c:/users/kyle/code/mo-hg",
+        "c:/users/kyle/code/measure-noise"
 //        "c:/users/kyle/code/mo-deploy",
 //        "c:/users/kyle/code/mo-parquet",
     ],
-    "deploy": ["jx-elasticsearch"],
+    "deploy": [ "pyLibrary"],
     "constants": {
         "pyLibrary.env.http.default_headers": {
             "Referer": "https://github.com/klahnakoski/mo-deploy"
