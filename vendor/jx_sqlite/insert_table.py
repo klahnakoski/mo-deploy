@@ -11,16 +11,15 @@
 
 from __future__ import absolute_import, division, unicode_literals
 
-from mo_future import is_text, is_binary
 from copy import copy
 
+from jx_base import Column
 from jx_base.expressions import jx_expression
-from jx_python.meta import Column
 from jx_sqlite import GUID, ORDER, PARENT, UID, get_if_type, get_type, typed_column
 from jx_sqlite.base_table import BaseTable, generateGuid
 from mo_dots import Data, Null, concat_field, is_data, listwrap, literal_field, startswith_field, unwrap, unwraplist, wrap
 from mo_future import text_type
-from mo_json.typed_encoder import STRUCT
+from mo_json import STRUCT
 from mo_logs import Log
 from pyLibrary.sql import SQL_AND, SQL_FROM, SQL_INNER_JOIN, SQL_NULL, SQL_SELECT, SQL_TRUE, SQL_UNION_ALL, SQL_WHERE, sql_iso, sql_list
 from pyLibrary.sql.sqlite import join_column, quote_column, quote_value

@@ -30,14 +30,14 @@ class Version(object):
         if isinstance(version, tuple):
             self.version = version
         elif isinstance(version, DataObject):
-            pass
+            self.version = [0, 0, 0]
         elif isinstance(version, Version):
             self.version = version.version
         else:
             try:
                 self.version = tuple(map(int, version.split('.')))
             except Exception as e:
-                pass
+                self.version = [0, 0, 0]
 
     def __gt__(self, other):
         other = Version(other)

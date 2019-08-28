@@ -11,12 +11,11 @@
 
 from __future__ import absolute_import, division, unicode_literals
 
-from mo_future import is_text, is_binary
 from copy import copy
 
 from jx_base import DataClass
 from mo_dots import Data, concat_field, is_data, is_list, join_field, split_field
-from mo_future import text_type
+from mo_future import is_text, text_type
 from mo_json import BOOLEAN, NESTED, NUMBER, OBJECT, STRING, json2value
 from mo_kwargs import override
 from mo_math.randoms import Random

@@ -8,17 +8,15 @@
 
 from __future__ import absolute_import, division, unicode_literals
 
-from mo_future import is_text, is_binary
 from copy import copy
 
 import jx_base
 from jx_base import Column, Facts
 from jx_base.queries import get_property_name
-# from jx_python.meta import ColumnList
-from jx_python.jx import first
+from jx_elasticsearch.meta_columns import ColumnList
 from jx_sqlite import GUID, UID, quoted_GUID, quoted_ORDER, quoted_PARENT, quoted_UID, typed_column, untyped_column
 from mo_dots import Null, coalesce, concat_field, listwrap, relative_field, set_default, startswith_field, tail_field, wrap
-from mo_future import text_type
+from mo_future import text_type, first
 from mo_json import EXISTS, INTEGER, NUMBER, OBJECT, STRING, STRUCT
 from mo_logs import Log
 from pyLibrary.sql import SQL_FROM, SQL_LIMIT, SQL_SELECT, SQL_STAR, SQL_ZERO, sql_iso, sql_list
