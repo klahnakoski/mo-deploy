@@ -32,7 +32,7 @@ class Module(object):
     svn = "svn"
     pip = "pip"
     twine = "twine"
-    python = "C:/Python27/python.exe"
+    python = "python"
 
     def __init__(self, info, graph):
         if isinstance(info, Mapping):
@@ -152,7 +152,6 @@ class Module(object):
             self.scrub_pypi_residue()
 
     def update_setup_file(self, new_version):
-        setup_file = self.directory / "setup.py"
         setup_json = self.directory / SETUPTOOLS
         readme = self.directory / "README.md"
         req_file = self.directory / "requirements.txt"

@@ -141,8 +141,12 @@ def _replace_ref(node, url):
 def _replace_locals(node, doc_path):
     if is_data(node):
         # RECURS, DEEP COPY
+        if "$concat" in node:
+            return node['separator'].join(node['$concat'])
+
         ref = None
         output = {}
+
         for k, v in node.items():
             if k == "$ref":
                 ref = v

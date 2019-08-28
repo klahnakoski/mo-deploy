@@ -36,6 +36,7 @@ def main():
         Module.svn = coalesce(settings.svn, Module.svn)
         Module.pip = coalesce(settings.pip, Module.pip)
         Module.twine = coalesce(settings.twine, Module.twine)
+        Module.python = coalesce(settings.python, Module.python)
 
         graph = ModuleGraph(listwrap(settings.managed), settings.deploy)
 

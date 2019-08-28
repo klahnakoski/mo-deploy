@@ -3,6 +3,7 @@
     "git": "C:\\Program Files\\Git\\cmd\\git.exe",
     "svn": "C:\\Program Files\\TortoiseSVN\\bin\\svn.exe",
     "pip": "pip",
+    "python":"C:\\Python27\\python.exe",
     "managed": [
         "c:/users/kyle/code/mo-future",
         "c:/users/kyle/code/mo-dots",
@@ -27,7 +28,7 @@
 //        "c:/users/kyle/code/mo-deploy",
 //        "c:/users/kyle/code/mo-parquet",
     ],
-    "deploy": [ "pyLibrary"],
+    "deploy": [ "measure-noise"],
     "constants": {
         "pyLibrary.env.http.default_headers": {
             "Referer": "https://github.com/klahnakoski/mo-deploy"
