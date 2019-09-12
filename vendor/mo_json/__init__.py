@@ -341,7 +341,7 @@ def json2value(json_string, params=Null, flexible=False, leaves=False):
             if len(sample) > 43:
                 sample = sample[:43] + "..."
 
-            Log.error(CAN_NOT_DECODE_JSON + " at:\n\t{{sample}}\n\t{{pointer}}\n", sample=sample, pointer=pointer)
+            Log.error(CAN_NOT_DECODE_JSON + " at:\n\t{{sample}}\n\t{{pointer}}\n", sample=sample, pointer=pointer, cause=e)
 
         base_str = strings.limit(json_string, 1000).encode('utf8')
         hexx_str = bytes2hex(base_str, " ")

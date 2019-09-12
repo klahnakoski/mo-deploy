@@ -17,18 +17,7 @@ from mo_logs import Log, constants, startup
 
 def main():
     try:
-        settings = startup.read_settings(
-            defs=[
-                {
-                    "name": ["--dir", "--directory", "-d"],
-                    "help": "directory to deploy",
-                    "type": str,
-                    "dest": "directory",
-                    "required": True,
-                    "default": ".",
-                }
-            ]
-        )
+        settings = startup.read_settings()
         constants.set(settings.constants)
         Log.start(settings.debug)
 

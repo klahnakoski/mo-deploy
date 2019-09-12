@@ -222,7 +222,7 @@ class Module(object):
             [self.git, "commit", "-m", message], raise_on_error=False
         )
         if (
-            "nothing to commit, working directory clean" in stdout
+            any(line.startswith("nothing to commit, working") for line in stdout)
             or process.returncode == 0
         ):
             pass
@@ -300,7 +300,7 @@ class Module(object):
     @cache()
     def get_version(self):
         # RETURN version, revision PAIR
-        p, stdout, stderr = self.local(["git", "tag"])
+        p, stdout, stderr = self.local([self.git, "tag"])
         all_versions = [Version(line.lstrip("v")) for line in stdout]
 
         if all_versions:
