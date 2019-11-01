@@ -67,11 +67,11 @@ Here is a diagram of a git repo, with three branches, each with (some version of
 
 ## Solution: Two version control systems
 
-Your projects are managed with one vcs, and your libraries are synched with another vcs. In this document we will assume Git and Subversion respectively.  Each has particular properties that are well suited to managing libraries in this manner   
+Your projects will be managed with one VCS, and your libraries will be synched with another VCS. In this document we will assume Git and Subversion respectively.  Each has particular properties that are well suited to synchronizing libraries in this manner   
 
 You can use this technique on all your vendor libraries. It helps especially when your vendor code lacks comprehensive tests: Each project that uses your vendor library effectively acts as a test suite.
 
-> **This technique is only needed if you are synchronizing libraries across more then one project. Contributors to your project, and anyone not maintaining the library need not know about this**
+> **This technique is only needed if you are synchronizing libraries across more then one project. Contributors to your projects need not know about this**
 
 
 ## Overview
@@ -212,10 +212,10 @@ Ensure you push your library updates to Subversion so other projects can use it
 
 ## Distributed Library Propagation
 
-A system of two svn tools allows third party projects to propagate libray updates 
+A system with two svn servers allows third party projects to propagate library updates 
 
 <img src="library-versioning-propagation.png" style="width:391px">
 
-In the diagram above, we can assume there are two programmers (1 and 2), each with thier own local SVN repository containing shared libraries they use. After programmer1 updates `project2`, programmer3 can pickup that change and transfer it to `project3`. 
+In the diagram above, we can assume there are two programmers (1 and 2), each with their own local SVN repository containing shared libraries. Programmer1 can propagate changes from `project1` to `project2`.  After programmer1 pushes updates to `project2`, programmer3 can pull those changes and propagate them to `project3`. 
   
 
