@@ -5,14 +5,12 @@ This document details my process for managing many libraries used in many projec
 
 ## Problem
 
-You have suite of libraries you would like to use in multiple projects. You would like to vendor the code for stability, but you would also like to update the code as if it belongs to the project.
+You have suite of libraries you would like to use in multiple projects. You would like to vendor the code for stability, but you would also like to update the code as if it belongs to the project. Some examples are:
  
-* personal toolbox
-* maturing frameworks
-* facades
-* forked repos
-
-Once you have your project ready, you do not want your code changing.
+* **personal toolbox** - the conglomeration of utility functions you are familiar with
+* **facades** - Domain-specific simplification of 3rd party modules to avoid boilerplate code.
+* **maturing frameworks** - code meant to be a formal library, but too immature at this time
+* **forked repos** - 3rd party code that must enhanced, but will not be accepted by upstream in a timely manner
  
 ## Existing Solutions
 
@@ -69,11 +67,11 @@ Here is a diagram of a git repo, with three branches, each with (some version of
 
 ## Solution: Two version control systems
 
-Your projects are managed with one vcs, and your libraries are synched with another vcs. In this document we will assume Git and Subversion respectively.  Each has particular properties that are well suited to managing libraries in the manner   
+Your projects are managed with one vcs, and your libraries are synched with another vcs. In this document we will assume Git and Subversion respectively.  Each has particular properties that are well suited to managing libraries in this manner   
 
 You can use this technique on all your vendor libraries. It helps especially when your vendor code lacks comprehensive tests: Each project that uses your vendor library effectively acts as a test suite.
 
-> **This technique is only needed if you are synchronizing the libraries of more then one project. Contributors to your project, and anyone not maintaining the library need not know about this**
+> **This technique is only needed if you are synchronizing libraries across more then one project. Contributors to your project, and anyone not maintaining the library need not know about this**
 
 
 ## Overview
