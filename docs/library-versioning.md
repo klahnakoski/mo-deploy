@@ -106,6 +106,9 @@ Please notice
 
 ### Project Setup
 
+> **IMPORTANT** - SVN updates and commits will happen on just one Git branch, the `dev` branch (more below)
+
+
 Setup Subversion host your library
 
     svn mkdir svn://localhost/libraries/my_library
@@ -218,4 +221,8 @@ A system with two svn servers allows third party projects to propagate library u
 
 In the diagram above, we can assume there are two programmers (1 and 2), each with their own local SVN repository containing shared libraries. Programmer1 can propagate changes from `project1` to `project2`.  After programmer1 pushes updates to `project2`, programmer3 can pull those changes and propagate them to `project3`. 
   
+## Ephemeral SVN
 
+The SVN repo can be ephemeral: It is only needed to track changes and propagate them to another Git repo. Once the propagation is complete, the `.svn` directory can be removed, the `dev` branch deleted, and the SVN server destroyed: Another can take its place easily enough.
+
+In practice, this is not done because disk is cheap, and it takes time to setup a new SVN repo. But, when considering backups: Know that this technique requires no long-term SVN state.

@@ -10,13 +10,14 @@ from __future__ import division, unicode_literals
 
 from toposort import toposort
 
-from mo_deploy.module import Module
+from mo_deploy.module import Module, SETUPTOOLS
 from mo_deploy.utils import Requirement
 from mo_dots import listwrap
 from mo_logs import Log
 from mo_math import UNION
 from mo_threads import Lock
 from mo_threads.threads import AllThread
+from pyLibrary.utils import Version
 
 
 class ModuleGraph(object):
@@ -34,7 +35,11 @@ class ModuleGraph(object):
             module_name = m.name
             # FIND DEPENDENCIES FOR EACH MODULE
             graph[module_name] = set()
-            versions[module_name] = m.get_version()[0]
+            last_version = m.get_version()[0]
+            versions[module_name] = max(
+                Version((m.directory/SETUPTOOLS).read_json().version),
+                last_version
+            )
 
             for req in m.get_requirements(
                 [Requirement(k, ">=", v) for k, v in versions.items()]
@@ -88,7 +93,7 @@ class ModuleGraph(object):
         self.todo_names = [t.name for t in self.todo]
 
         if not self.todo:
-            self.next_version = max(versions.values())
+            self.next_version = max(v for v in versions.values() if v != None)
         else:
             # ASSIGN next_version IN CASE IT IS REQUIRED
             # IF b DEPENDS ON a THEN version(b)>=version(a)
