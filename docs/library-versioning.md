@@ -219,7 +219,7 @@ A system with two svn servers allows third party projects to propagate library u
 
 <img src="library-versioning-propagation.png" style="width:391px">
 
-In the diagram above, we can assume there are two programmers (1 and 2), each with their own local SVN repository containing shared libraries. Programmer1 can propagate changes from `project1` to `project2`.  After programmer1 pushes updates to `project2`, programmer3 can pull those changes and propagate them to `project3`. 
+In the diagram above, we can assume there are two programmers (1 and 2), each with their own local SVN repository containing shared libraries. Programmer1 can propagate changes from `project1` to `project2`.  After programmer1 pushes updates to `project2`, programmer2 can pull those changes and propagate them to `project3`. 
   
 ## Ephemeral SVN
 

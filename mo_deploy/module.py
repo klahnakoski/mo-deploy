@@ -11,9 +11,9 @@ from __future__ import division, unicode_literals
 from collections import Mapping
 
 from mo_deploy.utils import Requirement, parse_req
-from mo_dots import coalesce, wrap
+from mo_dots import coalesce, wrap, listwrap
 from mo_files import File
-from mo_future import is_binary, is_text, sort_using_key, text_type
+from mo_future import is_binary, is_text, sort_using_key, text
 from mo_json import value2json
 import mo_json_config
 from mo_logs import Except, Log
@@ -59,18 +59,18 @@ class Module(object):
 
         master_rev = self.master_revision()
         try:
-            self.update_setup_file(self.graph.next_version)
+            self.update_setup_json_file(self.graph.next_version)
+            self.gen_setup_py_file()
             self.local([self.python, "-c", "from " + self.name.replace("-", "_") + " import __deploy__; __deploy__()"], raise_on_error=False)
             self.update_dev("update version number")
             self.update_master_locally(self.graph.next_version)
-            self.gen_setup_file()
             self.pypi()
             self.local([self.git, "push", "origin", self.master_branch])
         except Exception as e:
             e = Except.wrap(e)
             self.local([self.git, "checkout", "-f", master_rev])
             self.local(
-                [self.git, "tag", "--delete", "v" + text_type(self.graph.next_version)],
+                [self.git, "tag", "--delete", "v" + text(self.graph.next_version)],
                 raise_on_error=False,
             )
             self.local(
@@ -85,7 +85,7 @@ class Module(object):
         self.local([self.git, "checkout", self.dev_branch])
         self.local([self.git, "merge", self.master_branch])
 
-    def gen_setup_file(self):
+    def gen_setup_py_file(self):
         setup_file = self.directory / "setup.py"
         Log.note("write setup.py")
         setup = mo_json_config.get_file(self.directory / SETUPTOOLS)
@@ -151,7 +151,7 @@ class Module(object):
         finally:
             self.scrub_pypi_residue()
 
-    def update_setup_file(self, new_version):
+    def update_setup_json_file(self, new_version):
         setup_json = self.directory / SETUPTOOLS
         readme = self.directory / "README.md"
         req_file = self.directory / "requirements.txt"
@@ -168,6 +168,11 @@ class Module(object):
 
         # LOAD
         setup = mo_json_config.get_file(setup_json)
+
+        if not setup.python_requires:
+            Log.warning("missing python_requires, please add it")
+        if not any(c.startswith("Programming Language :: Python") for c in listwrap(setup.classifiers)):
+            Log.warning("expecting language classifier, like 'Programming Language :: Python :: 3.7'")
 
         # LONG DESCRIPTION
         setup.long_description_content_type = "text/markdown"
@@ -191,14 +196,14 @@ class Module(object):
             )
 
         # VERSION
-        setup.version = text_type(new_version)
+        setup.version = text(new_version)
 
         # REQUIRES
         reqs = self.get_requirements(
             [parse_req(line) for line in setup.install_requires]
         )
         setup.install_requires = [
-            r.name + r.type + text_type(r.version) if r.version else r.name
+            r.name + r.type + text(r.version) if r.version else r.name
             for r in sort_using_key(reqs, key=lambda rr: rr.name)
         ]
 
@@ -240,9 +245,12 @@ class Module(object):
     def update_master_locally(self, version):
         Log.note("Update git master branch for {{dir}}", dir=self.directory.abspath)
         try:
+            v = "v" + text(version)
             self.local([self.git, "checkout", self.master_branch])
-            self.local([self.git, "merge", "--no-ff", self.dev_branch])
-            self.local([self.git, "tag", "v" + text_type(version)])
+            self.local([self.git, "merge", "--no-ff", "--no-commit", self.dev_branch])
+            self.local([self.git, "commit", "-m", "release " + v])
+            self.local([self.git, "tag", v])
+            self.local([self.git, "push", "origin", v])
         except Exception as e:
             Log.error(
                 "git origin master not updated for {{dir}}",
@@ -305,7 +313,7 @@ class Module(object):
 
         if all_versions:
             version = max(all_versions)
-            p, stdout, stderr = self.local([self.git, "show", "v" + text_type(version)])
+            p, stdout, stderr = self.local([self.git, "show", "v" + text(version)])
             for line in stdout:
                 if line.startswith("commit "):
                     revision = line.split("commit")[1].strip()
@@ -364,10 +372,10 @@ class Module(object):
 
 def value2python(value):
     if value in (True, False, None):
-        return text_type(repr(value))
+        return text(repr(value))
     elif is_text(value):
-        return text_type("str(" + repr(value) + ")")
+        return text(repr(value))
     elif is_binary(value):
-        return text_type("str(" + repr(value) + ")")
+        return text(repr(value))
     else:
         return value2json(value)
