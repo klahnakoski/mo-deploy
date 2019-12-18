@@ -5,32 +5,30 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http:# mozilla.org/MPL/2.0/.
 #
-# Author: Kyle Lahnakoski (kyle@lahnakoski.com)
+# Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
 
 
 from __future__ import absolute_import, division, unicode_literals
 
 from copy import copy
+from math import isnan
 
 from jx_base import DataClass
-from mo_dots import Data, concat_field, is_data, is_list, join_field, split_field
-from mo_future import is_text, text_type
+from mo_dots import Data, concat_field, is_data, is_list, join_field, split_field, is_sequence
+from mo_future import is_text, text
 from mo_json import BOOLEAN, NESTED, NUMBER, OBJECT, STRING, json2value
-from mo_kwargs import override
 from mo_math.randoms import Random
 from mo_times import Date
-from pyLibrary.sql import SQL
-from pyLibrary.sql.sqlite import quote_column
+from jx_sqlite.sqlite import quote_column
 
-GUID = "_id"
-UID = "__id__"  # will not be quoted
+GUID = "_id"  # user accessible, unique value across many machines
+UID = "__id__"  # internal numeric id for single-database use
 ORDER = "__order__"
 PARENT = "__parent__"
 COLUMN = "__column"
 
 ALL_TYPES = "bns"
-
 
 
 def unique_name():
@@ -54,6 +52,9 @@ def column_key(k, v):
         return k, "number"
 
 
+POS_INF = float("+inf")
+
+
 def get_type(v):
     if v == None:
         return None
@@ -63,9 +64,13 @@ def get_type(v):
         return STRING
     elif is_data(v):
         return OBJECT
-    elif isinstance(v, (int, float, Date)):
+    elif isinstance(v, float):
+        if isnan(v) or abs(v) == POS_INF:
+            return None
         return NUMBER
-    elif is_list(v):
+    elif isinstance(v, (int, Date)):
+        return NUMBER
+    elif is_sequence(v):
         return NESTED
     return None
 
@@ -120,12 +125,14 @@ def untyped_column(column_name):
     if "$" in column_name:
         path = split_field(column_name)
         return join_field(path[:-1]), path[-1][1:]
+    elif column_name in [GUID]:
+        return column_name, "n"
     else:
         return column_name, None
 
 
 def _make_column_name(number):
-    return SQL(COLUMN + text_type(number))
+    return COLUMN + text(number)
 
 
 sql_aggs = {
@@ -262,7 +269,7 @@ ColumnMapping = DataClass(
         "column_alias"
     ],
     constraint={"and": [
-        {"in": {"type": ["null", "boolean", "number", "string", "object"]}},
+        {"in": {"type": ["0", "boolean", "number", "string", "object"]}},
         {"gte": [{"length": "nested_path"}, 1]}
     ]}
 )
@@ -274,18 +281,5 @@ json_types = {
     "TINYINT": "boolean",
     "OBJECT": "nested"
 }
-
-
-from jx_sqlite.base_table import BaseTable
-from jx_sqlite.query_table import QueryTable
-
-
-class Container(QueryTable):
-
-    @override
-    def __init__(self, name, db=None, uid=UID, kwargs=None):
-        BaseTable.__init__(self, name, db, uid, kwargs)
-
-
 
 

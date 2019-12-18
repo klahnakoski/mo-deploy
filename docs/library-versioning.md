@@ -11,14 +11,29 @@ You have suite of libraries you would like to use in multiple projects. You woul
 * **facades** - Domain-specific simplification of 3rd party modules to avoid boilerplate code.
 * **maturing frameworks** - code meant to be a formal library, but too immature at this time
 * **forked repos** - 3rd party code that must enhanced, but will not be accepted by upstream in a timely manner
+
+## Solution
+
+A solution has three properties
  
+* **Isolation** - Every project can have its own version of the library; this is necessary for stability and security 
+* **Synchronization** - Updating the library code to the latest version should be easy 
+* **Expedient** - Changing the library code when working project code should be easy
+
+
 ## Existing Solutions
 
-The existing solutions are time consuming, or confusing.
+The existing solutions are incomplete or complicated.
+
+
+### Symbolic Link?
+
+Having a project link to the library source code is the simplest solution, but then all projects on the machine must use the same codebase. This may be fine until you introduce a breaking change, or refactor something: Then all your dependent projects must be updated immediately, or suffer breakage.  Symbolic links do not have *isolation*.
+
 
 ### Packaged projects?
 
-Packages provide the required portability between various projects, but they suffer from synchonization problems. Either a bug must be fixed in a library before project work can be resumed, or the API to a library is changing,   
+Packages provide the isolation and portability between various projects, but they suffer from synchonization problems. Either a bug must be fixed in a library before project work can be resumed, or the API to a library is changing,   
 
 * while debugging `Project-1` 
 * you see a bug in `Library_1` code
@@ -30,12 +45,11 @@ Packages provide the required portability between various projects, but they suf
 
 This is fine for mature projects; the code is stable and production quality; it is unlikely you will need a bug fixed in the library, and the few bugs in the library are unlikely to affect your use cases.
 
-If a library is still changing, or if it still needs stabilization work, then packaged projects make it difficult to change the library code. 
+If a library is still changing, or if it still needs stabilization work, then packaged projects make it difficult to change the library code.  Packages are not *expedient*.
 
+### Monoe Repo?
 
-### Single Repo?
-
-Storing all your code in a single repo allows you to change both the project code and the library code together. There are detriments:
+Storing all your code in a monolithic repo allows you to change both the project code and the library code together. There are detriments:
 
 * All projects must be in the same repo to benefit from the library code
 * Repo can get enormous, 
@@ -43,8 +57,7 @@ Storing all your code in a single repo allows you to change both the project cod
 * Difficult to teach what is important to a single project 
 * You can not share library code with yet-more projects 
 
-
-Starting a new project is difficult because you must import, in one way or another, your personal suite of useful code.  
+Starting a new project is difficult because you must import, in one way or another, your personal suite of useful code.  The mono repo solution has not *isolation* within the repo and has no *synchronization* without the repo. 
 
 
 ```
@@ -67,7 +80,7 @@ Here is a diagram of a git repo, with three branches, each with (some version of
 
 ## Solution: Two version control systems
 
-Your projects will be managed with one VCS, and your libraries will be synched with another VCS. In this document we will assume Git and Subversion respectively.  Each has particular properties that are well suited to synchronizing libraries in this manner   
+Your projects will be managed with one VCS, and your libraries will be synched with another VCS. In this document we will assume Git and Subversion respectively.  Each has particular properties that are well suited to synchronizing libraries in this manner.  One VCS will support *isolation* and *expediancy*, while the other VCS will be responsible for *synchronization*.   
 
 You can use this technique on all your vendor libraries. It helps especially when your vendor code lacks comprehensive tests: Each project that uses your vendor library effectively acts as a test suite.
 
@@ -219,7 +232,7 @@ A system with two svn servers allows third party projects to propagate library u
 
 <img src="library-versioning-propagation.png" style="width:391px">
 
-In the diagram above, we can assume there are two programmers (1 and 2), each with their own local SVN repository containing shared libraries. Programmer1 can propagate changes from `project1` to `project2`.  After programmer1 pushes updates to `project2`, programmer3 can pull those changes and propagate them to `project3`. 
+In the diagram above, we can assume there are two programmers (1 and 2), each with their own local SVN repository containing shared libraries. Programmer1 can propagate changes from `project1` to `project2`.  After programmer1 pushes updates to `project2`, programmer2 can pull those changes and propagate them to `project3`. 
   
 ## Ephemeral SVN
 

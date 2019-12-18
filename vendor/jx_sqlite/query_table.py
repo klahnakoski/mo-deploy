@@ -5,48 +5,58 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http:# mozilla.org/MPL/2.0/.
 #
-# Author: Kyle Lahnakoski (kyle@lahnakoski.com)
+# Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
 
 
 from __future__ import absolute_import, division, unicode_literals
 
-from mo_future import is_text, is_binary
+import mo_json
+from jx_base import Column, Facts
+from jx_base.container import type2container
 from jx_base.domains import SimpleSetDomain
 from jx_base.expressions import TupleOp, Variable, jx_expression
+from jx_base.language import is_op
 from jx_base.query import QueryOp
 from jx_python import jx
-from jx_python.meta import Column
 from jx_sqlite import GUID, sql_aggs, unique_name, untyped_column
+from jx_sqlite.base_table import BaseTable
+from jx_sqlite.expressions._utils import SQLang
 from jx_sqlite.groupby_table import GroupbyTable
 from mo_collections.matrix import Matrix, index_to_coordinate
-from mo_dots import Data, Null, coalesce, concat_field, is_list, listwrap, relative_field, startswith_field, unwrap, unwraplist, wrap
-from mo_future import text_type
-import mo_json
+from mo_dots import Data, Null, coalesce, concat_field, is_list, listwrap, relative_field, startswith_field, unwrap, \
+    unwraplist, wrap
+from mo_future import text, transpose
 from mo_json import STRING, STRUCT
 from mo_logs import Log
-from pyLibrary.sql import SQL, SQL_FROM, SQL_ORDERBY, SQL_SELECT, SQL_WHERE, sql_count, sql_iso, sql_list
-from pyLibrary.sql.sqlite import quote_column
+from mo_sql import SQL_FROM, SQL_ORDERBY, SQL_SELECT, SQL_WHERE, sql_count, sql_iso, sql_list, SQL_CREATE, \
+    SQL_AS, SQL_DELETE, ConcatSQL, JoinSQL, SQL_COMMA
+from jx_sqlite.sqlite import quote_column, sql_alias
 
 
-class QueryTable(GroupbyTable):
+class QueryTable(GroupbyTable, Facts):
+    def __init__(self, name, container):
+        BaseTable.__init__(self, name, container)
+        Facts.__init__(self, name, container)
+
     def get_column_name(self, column):
-        return relative_field(column.name, self.sf.fact)
+        return relative_field(column.name, self.snowflake.fact_name)
 
     def __len__(self):
-        counter = self.db.query(SQL_SELECT + sql_count("*") + SQL_FROM + quote_column(self.sf.fact))[0][0]
+        counter = self.db.query(SQL_SELECT + sql_count("*") + SQL_FROM + quote_column(self.snowflake.fact_name))[0][0]
         return counter
 
     def __nonzero__(self):
-        counter = self.db.query(SQL_SELECT + sql_count("*") + SQL_FROM + quote_column(self.sf.fact))[0][0]
+        counter = self.db.query(SQL_SELECT + sql_count("*") + SQL_FROM + quote_column(self.snowflake.fact_name))[0][0]
         return bool(counter)
 
     def delete(self, where):
-        filter = where.to_sql()
-        self.db.execute("DELETE" + SQL_FROM + quote_column(self.sf.fact) + SQL_WHERE + filter)
+        filter = SQLang[jx_expression(where)].to_sql(self.schema)
+        with self.db.transaction() as t:
+            t.execute(ConcatSQL((SQL_DELETE, SQL_FROM, quote_column(self.snowflake.fact_name), SQL_WHERE, filter)))
 
     def vars(self):
-        return set(self.columns.keys())
+        return set(self.schema.columns.keys())
 
     def map(self, map_):
         return self
@@ -59,25 +69,21 @@ class QueryTable(GroupbyTable):
         """
         select = []
         column_names = []
-        for cname, cs in self.columns.items():
-            cs = [c for c in cs if c.jx_type not in STRUCT and len(c.nested_path) == 1]
-            if len(cs) == 0:
+        for c in self.schema.columns:
+            if c.jx_type in STRUCT:
                 continue
-            column_names.append(cname)
-            if len(cs) == 1:
-                select.append(quote_column(c.es_column) + " " + quote_column(c.name))
-            else:
-                select.append(
-                    "coalesce(" +
-                    sql_list(quote_column(c.es_column) for c in cs) +
-                    ") " + quote_column(c.name)
-                )
+            if len(c.nested_path) != 1:
+                continue
+            column_names.append(c.name)
+            select.append(sql_alias(quote_column(c.es_column), c.name))
 
-        result = self.db.query(
-            SQL_SELECT + SQL("\n,").join(select) +
-            SQL_FROM + quote_column(self.sf.fact) +
-            SQL_WHERE + jx_expression(filter).to_sql()
-        )
+        where_sql = SQLang[jx_expression(filter)].to_sql(self.schema)[0].sql.b
+        result = self.db.query(ConcatSQL((
+            SQL_SELECT, JoinSQL(SQL_COMMA, select),
+            SQL_FROM, quote_column(self.snowflake.fact_name),
+            SQL_WHERE, where_sql
+        )))
+
         return wrap([{c: v for c, v in zip(column_names, r)} for r in result.data])
 
     def query(self, query):
@@ -85,32 +91,31 @@ class QueryTable(GroupbyTable):
         :param query:  JSON Query Expression, SET `format="container"` TO MAKE NEW TABLE OF RESULT
         :return:
         """
-        if not startswith_field(query['from'], self.sf.fact):
+        if not query.get('from'):
+            query['from'] = self.name
+        elif not startswith_field(query['from'], self.name):
             Log.error("Expecting table, or some nested table")
-        frum, query['from'] = query['from'], self
-        table = self.sf.tables[relative_field(frum, self.sf.fact)]
-        schema = table.schema
-        query = QueryOp.wrap(query, self, self.namespace)
+        query = QueryOp.wrap(query, self.container, self.namespace)
         new_table = "temp_" + unique_name()
 
         if query.format == "container":
-            create_table = "CREATE TABLE " + quote_column(new_table) + " AS "
+            create_table = SQL_CREATE + quote_column(new_table) + SQL_AS
         else:
             create_table = ""
 
         if query.groupby and query.format != "cube":
-            op, index_to_columns = self._groupby_op(query, frum)
+            op, index_to_columns = self._groupby_op(query, self.schema)
             command = create_table + op
         elif query.groupby:
             query.edges, query.groupby = query.groupby, query.edges
-            op, index_to_columns = self._edges_op(query, frum)
+            op, index_to_columns = self._edges_op(query, self.schema)
             command = create_table + op
             query.edges, query.groupby = query.groupby, query.edges
         elif query.edges or any(a != "none" for a in listwrap(query.select).aggregate):
-            op, index_to_columns = self._edges_op(query, frum)
+            op, index_to_columns = self._edges_op(query, self.schema)
             command = create_table + op
         else:
-            op = self._set_op(query, frum)
+            op = self._set_op(query)
             return op
 
         result = self.db.query(command)
@@ -205,7 +210,7 @@ class QueryTable(GroupbyTable):
                     domain = SimpleSetDomain(partitions=jx.sort(set(parts)))
                 else:
                     if not columns:
-                        columns = zip(*result.data)
+                        columns = transpose(*result.data)
                     parts = set(columns[i])
                     if e.is_groupby and None in parts:
                         allowNulls = True
@@ -340,9 +345,9 @@ class QueryTable(GroupbyTable):
 
     def query_metadata(self, query):
         frum, query['from'] = query['from'], self
-        schema = self.sf.tables["."].schema
+        schema = self.snowflake.tables["."].schema
         query = QueryOp.wrap(query, schema)
-        columns = self.sf.columns
+        columns = self.snowflake.columns
         where = query.where
         table_name = None
         column_name = None
@@ -357,7 +362,7 @@ class QueryTable(GroupbyTable):
         else:
             Log.error("Only simple filters are expected like: \"eq\" on table and column name")
 
-        tables = [concat_field(self.sf.fact, i) for i in self.tables.keys()]
+        tables = [concat_field(self.snowflake.fact_name, i) for i in self.tables.keys()]
 
         metadata = []
         if columns[-1].es_column != GUID:
@@ -365,7 +370,7 @@ class QueryTable(GroupbyTable):
                 name=GUID,
                 jx_type=STRING,
                 es_column=GUID,
-                es_index=self.sf.fact,
+                es_index=self.snowflake.fact_name,
                 nested_path=["."]
             ))
 
@@ -421,11 +426,11 @@ class QueryTable(GroupbyTable):
                 ") AS " + quote_column(window.name)
             )
 
-        range_min = text_type(coalesce(window.range.min, "UNBOUNDED"))
-        range_max = text_type(coalesce(window.range.max, "UNBOUNDED"))
+        range_min = text(coalesce(window.range.min, "UNBOUNDED"))
+        range_max = text(coalesce(window.range.max, "UNBOUNDED"))
 
         return (
-            sql_aggs[window.aggregate] + sql_iso(window.value.to_sql()) + " OVER (" +
+            sql_aggs[window.aggregate] + sql_iso(window.value.to_sql(schema)) + " OVER (" +
             " PARTITION BY " + sql_iso(sql_list(window.edges.values)) +
             SQL_ORDERBY + sql_iso(sql_list(window.edges.sort)) +
             " ROWS BETWEEN " + range_min + " PRECEDING AND " + range_max + " FOLLOWING " +
@@ -451,7 +456,33 @@ class QueryTable(GroupbyTable):
             Log.error("not done")
         return output
 
+    def transaction(self):
+        """
+        PERFORM MULTIPLE ACTIONS IN A TRANSACTION
+        """
+        return Transaction(
+            self
+        )
 
-from jx_base.container import type2container
+
+class Transaction:
+
+    def __init__(self, table):
+        self.transaction = None
+        self.table = table
+
+    def __enter__(self):
+        self.transaction = self.container.db.transaction()
+        self.table.db = self.transaction  # REDIRECT SQL TO TRANSACTION
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.table.db = self.table.container.db
+        self.transaction.__exit__(exc_type, exc_val, exc_tb)
+        self.transaction = None
+
+    def __getattr__(self, item):
+        return getattr(self.table, item)
+
 
 type2container["sqlite"] = QueryTable
