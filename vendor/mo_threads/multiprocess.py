@@ -23,7 +23,7 @@ from mo_threads.threads import THREAD_STOP, Thread
 from mo_threads.till import Till
 from mo_times import Timer
 
-DEBUG = True
+DEBUG = False
 
 
 class Process(object):
@@ -111,7 +111,7 @@ class Process(object):
         return self.service.returncode
 
     def _monitor(self, please_stop):
-        with Timer(self.name):
+        with Timer(self.name, verbose=self.debug):
             self.service.wait()
             self.debug and Log.note("{{process}} STOP: returncode={{returncode}}", process=self.name, returncode=self.service.returncode)
             self.service_stopped.go()
