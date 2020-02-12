@@ -171,8 +171,6 @@ class Module(object):
 
         # LOAD
         setup = mo_json_config.get_file(setup_json)
-
-        setup.python_requires = Module.python_requires
         if not any(c.startswith("Programming Language :: Python") for c in listwrap(setup.classifiers)):
             Log.warning("expecting language classifier, like 'Programming Language :: Python :: 3.7'")
 
