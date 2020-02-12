@@ -21,16 +21,17 @@ def main():
         constants.set(settings.constants)
         Log.start(settings.debug)
 
-        Module.git = coalesce(settings.git, Module.git)
-        Module.svn = coalesce(settings.svn, Module.svn)
-        Module.pip = coalesce(settings.pip, Module.pip)
-        Module.twine = coalesce(settings.twine, Module.twine)
-        Module.python = coalesce(settings.python, Module.python)
+        # SET Module VARIABLES (IN general)
+        for k, v in settings.general.items():
+            setattr(Module, k, v)
 
         graph = ModuleGraph(listwrap(settings.managed), settings.deploy)
 
+        # python -m pip install --upgrade setuptools wheel
+        # python -m pip install --user --upgrade twine
+
         if not graph.todo:
-            Log.note("No modules need to deploy")
+            Log.alert("No modules need to deploy")
             return
         input("Press <Enter> to continue ...")
         for m in graph.todo:

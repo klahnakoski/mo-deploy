@@ -1,14 +1,18 @@
 {
-    "prefix": "mo-",
-    "git": "C:\\Program Files\\Git\\cmd\\git.exe",
-    "svn": "C:\\Program Files\\VisualSVN Server\\bin\\svn.exe",
-    "pip": "C:\\Python27\\Scripts\\pip.exe",
-    "python":"C:\\Python27\\python.exe",
-    "twine": "C:\\Python27\\Scripts\twine.exe",
+    "general": {
+        "git": "C:\\Program Files\\Git\\cmd\\git.exe",
+        "svn": "C:\\Program Files\\VisualSVN Server\\bin\\svn.exe",
+        "pip": "C:\\Python37\\Scripts\\pip.exe",
+        "python": "C:\\Python37\\python.exe",
+        "twine": "C:\\Python37\\Scripts\\twine.exe",
+        "python_requires": null,
+        "ignore_svn": "vendor/"
+    },
     "managed": [
         "c:/users/kyle/code/mo-future",
         "c:/users/kyle/code/mo-dots",
         "c:/users/kyle/code/mo-logs",
+        "c:/users/kyle/code/mo-sql",
         "c:/users/kyle/code/mo-files",
         "c:/users/kyle/code/mo-threads",
         "c:/users/kyle/code/mo-math",
@@ -18,19 +22,22 @@
         "c:/users/kyle/code/mo-collections",
         "c:/users/kyle/code/mo-testing",
         "c:/users/kyle/code/mo-json-config",
-        "c:/users/kyle/code/pyLibrary",
+//        "c:/users/kyle/code/pyLibrary",
+
         "c:/users/kyle/code/jx-python",
 //        "c:/users/kyle/code/jx-elasticsearch",
+        "c:/users/kyle/code/jx-bigquery",
+        "c:/users/kyle/code/jx-mysql",
+        "c:/users/kyle/code/jx-sqlite"
 
-        "c:/users/kyle/code/mo-fabric",
-//        "c:/users/kyle/code/jx-sqlite",
-        "c:/users/kyle/code/moz-sql-parser",
+//        "c:/users/kyle/code/mo-fabric",
+//        "c:/users/kyle/code/moz-sql-parser",
 //        "c:/users/kyle/code/mo-hg",
 //        "c:/users/kyle/code/measure-noise",
 //        "c:/users/kyle/code/mo-deploy",
 //        "c:/users/kyle/code/mo-parquet"
     ],
-    "deploy": ["moz-sql-parser"],
+    "deploy": ["jx-mysql", "jx-bigquery"],
     "constants": {
         "pyLibrary.env.http.default_headers": {
             "Referer": "https://github.com/klahnakoski/mo-deploy"

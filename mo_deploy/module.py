@@ -33,6 +33,8 @@ class Module(object):
     pip = "pip"
     twine = "twine"
     python = "python"
+    python_requires = ">=2.7"
+    ignore_svn = []
 
     def __init__(self, info, graph):
         if isinstance(info, Mapping):
@@ -130,6 +132,7 @@ class Module(object):
             self.local([self.python, "setup.py", "sdist"], raise_on_error=True)
 
             Log.note("twine upload of {{dir}}", dir=self.directory.abspath)
+            # python3 -m twine upload --repository-url https://test.pypi.org/legacy/ dist/*
             process, stdout, stderr = self.local(
                 [self.twine, "upload", "dist/*"], raise_on_error=False, show_all=True
             )
@@ -169,8 +172,7 @@ class Module(object):
         # LOAD
         setup = mo_json_config.get_file(setup_json)
 
-        if not setup.python_requires:
-            Log.warning("missing python_requires, please add it")
+        setup.python_requires = Module.python_requires
         if not any(c.startswith("Programming Language :: Python") for c in listwrap(setup.classifiers)):
             Log.warning("expecting language classifier, like 'Programming Language :: Python :: 3.7'")
 
@@ -215,6 +217,10 @@ class Module(object):
 
         for d in self.directory.find(r"\.svn"):
             svn_dir = d.parent.abspath
+            if any(d in svn_dir for d in listwrap(Module.ignore_svn)):
+                Log.note("Ignoring svn directory {{dir}}", dir=svn_dir)
+                continue
+
             Log.note("Update svn directory {{dir}}", dir=svn_dir)
             self.local([self.svn, "update", "--accept", "p", svn_dir])
             self.local([self.svn, "commit", svn_dir, "-m", "auto"])
