@@ -37,7 +37,7 @@ class ModuleGraph(object):
             graph[module_name] = set()
             last_version = m.get_version()[0]
             versions[module_name] = max(
-                Version((m.directory/SETUPTOOLS).read_json().version),
+                Version((m.directory/SETUPTOOLS).read_json(leaves=False).version, prefix='v'),
                 last_version
             )
 
