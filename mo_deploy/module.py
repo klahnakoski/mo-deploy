@@ -90,7 +90,7 @@ class Module(object):
                 [self.git, "branch", "-D", self.master_branch], raise_on_error=False
             )
             self.local([self.git, "checkout", "-b", self.master_branch])
-            Log.error("Can not deploy", cause=cause)
+            Log.error("Can not deploy {{module}}", module=self.name, cause=cause)
         finally:
             self.local([self.git, "checkout", self.dev_branch])
 
@@ -318,7 +318,7 @@ class Module(object):
                 Log.error("Expecting to run some tests: {{error}}", error=stderr[-2])
             if not last(stderr).startswith("OK"):
                 Log.error("Expecting all tests to pass: {{error}}", error=last(stderr))
-            Log.note("STDOUT\n{{stderr|indent}}", stderr=stderr)
+            Log.note("STDERR:\n{{stderr|indent}}", stderr=stderr)
 
     def local(self, args, raise_on_error=True, show_all=False, cwd=None):
         try:

@@ -578,7 +578,7 @@ def join_path(*path):
 def delete_daemon(file, caller_stack, please_stop):
     # WINDOWS WILL HANG ONTO A FILE FOR A BIT AFTER WE CLOSED IT
     from mo_threads import Till
-
+    num_attempts = 0
     while not please_stop:
         try:
             file.delete()
@@ -586,9 +586,10 @@ def delete_daemon(file, caller_stack, please_stop):
         except Exception as e:
             e = Except.wrap(e)
             e.trace = e.trace[0:2] + caller_stack
-
-            Log.warning(u"problem deleting file {{file}}", file=file.abspath, cause=e)
+            if num_attempts:
+                Log.warning(u"problem deleting file {{file}}", file=file.abspath, cause=e)
             (Till(seconds=10) | please_stop).wait()
+        num_attempts += 1
 
 
 def add_suffix(filename, suffix):
