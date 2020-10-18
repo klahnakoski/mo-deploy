@@ -12,7 +12,8 @@ import os
 import platform
 import subprocess
 
-from mo_dots import set_default, wrap, Null
+from mo_dots import set_default, to_data, Null
+from mo_files import File
 from mo_future import text
 from mo_logs import Log, strings
 from mo_logs.exceptions import Except
@@ -23,20 +24,36 @@ from mo_threads.threads import THREAD_STOP, Thread
 from mo_threads.till import Till
 from mo_times import Timer
 
-DEBUG = False
+DEBUG = True
 
 
 class Process(object):
     next_process_id = 0
 
     def __init__(self, name, params, cwd=None, env=None, debug=False, shell=False, bufsize=-1):
+        """
+        Spawns multiple threads to manage the stdin/stdout/stderr of the child process; communication is done
+        via proper thread-safe queues of the same name.
+
+        Since the process is managed and monitored by threads, the main thread is not blocked when the child process
+        encounters problems
+
+        :param name: name given to this process
+        :param params: list of strings for program name and parameters
+        :param cwd: current working directory
+        :param env: enviroment variables
+        :param debug: true to be verbose about stdin/stdout
+        :param shell: true to run as command line
+        :param bufsize: if you want to screw stuff up
+        """
+        self.debug = debug or DEBUG
         self.process_id = Process.next_process_id
         Process.next_process_id += 1
         self.name = name + " (" + text(self.process_id) + ")"
         self.service_stopped = Signal("stopped signal for " + strings.quote(name))
-        self.stdin = Queue("stdin for process " + strings.quote(name), silent=True)
-        self.stdout = Queue("stdout for process " + strings.quote(name), silent=True)
-        self.stderr = Queue("stderr for process " + strings.quote(name), silent=True)
+        self.stdin = Queue("stdin for process " + strings.quote(name), silent=not self.debug)
+        self.stdout = Queue("stdout for process " + strings.quote(name), silent=not self.debug)
+        self.stderr = Queue("stderr for process " + strings.quote(name), silent=not self.debug)
 
         try:
             if cwd == None:
@@ -44,7 +61,8 @@ class Process(object):
             else:
                 cwd = str(cwd)
 
-            self.debug = debug or DEBUG
+            command = [str(p) for p in params]
+            self.debug and Log.note("command: {{command}}", command=command)
             self.service = service = subprocess.Popen(
                 [str(p) for p in params],
                 stdin=subprocess.PIPE,
@@ -190,11 +208,14 @@ WINDOWS_ESCAPE_DCT = {
 
 PROMPT = "READY_FOR_MORE"
 
-if "windows" in platform.system().lower():
-    # def cmd_escape(v):
-    #     return "".join(WINDOWS_ESCAPE_DCT.get(c, c) for c in v)
-    cmd_escape = strings.quote
 
+def cmd_escape(value):
+    if isinstance(value, File):
+        return value.abspath
+    return strings.quote(value)
+
+
+if "windows" in platform.system().lower():
     def set_prompt():
         return "prompt "+PROMPT+"$g"
 
@@ -205,8 +226,6 @@ if "windows" in platform.system().lower():
         return value.decode("latin1")
 
 else:
-    cmd_escape = strings.quote
-
     def set_prompt():
         return "set prompt="+cmd_escape(PROMPT+">")
 
@@ -230,7 +249,7 @@ class Command(object):
     def __init__(self, name, params, cwd=None, env=None, debug=False, shell=False, bufsize=-1):
         shell = True
         self.name = name
-        self.key = (cwd, wrap(env), debug, shell)
+        self.key = (cwd, to_data(env), debug, shell)
         self.stdout = Queue("stdout for "+name)
         self.stderr = Queue("stderr for "+name)
 

@@ -9,27 +9,30 @@
 #
 from __future__ import absolute_import, division, unicode_literals
 
-from copy import copy
 import itertools
+from copy import copy
 
-import jx_base
-from jx_base import Container
+from jx_base.container import Container
 from jx_base.expressions import TRUE, Variable
 from jx_base.language import is_expression, is_op
 from jx_base.meta_columns import get_schema_from_list
+from jx_base.namespace import Namespace
 from jx_base.schema import Schema
+from jx_base.table import Table
+from jx_python.convert import list2cube, list2table
 from jx_python.expressions import jx_expression_to_function
 from jx_python.lists.aggs import is_aggs, list_aggs
 from mo_collections import UniqueIndex
-from mo_dots import Data, Null, is_data, is_list, listwrap, unwrap, unwraplist, wrap, coalesce, relative_field, \
-    split_field
+from mo_dots import Data, Null, is_data, is_list, listwrap, unwrap, unwraplist, to_data, coalesce, dict_to_data
 from mo_future import first, sort_using_key
+from mo_imports import export, expect
 from mo_logs import Log
 from mo_threads import Lock
-from pyLibrary import convert
+
+jx = expect("jx")
 
 
-class ListContainer(Container, jx_base.Namespace, jx_base.Table):
+class ListContainer(Container, Namespace, Table):
     """
     A CONTAINER WITH ONLY ONE TABLE
     """
@@ -67,31 +70,21 @@ class ListContainer(Container, jx_base.Namespace, jx_base.Table):
             return Null
 
     def query(self, q):
-        q = wrap(q)
+        q = to_data(q)
         output = self
         if is_aggs(q):
             output = list_aggs(output.data, q)
         else:
-            # SETOP
-            if q['from']:
-                path = split_field(relative_field(q['from'], self.name))
-                ListContainer(self.name)
-
-            try:
-                if q.filter != None or q.esfilter != None:
-                    Log.error("use 'where' clause")
-            except AttributeError:
-                pass
-
-            if q.where is not TRUE and not q.where is TRUE:
-                output = output.filter(q.where)
+            if q.where is not TRUE:
+                output = output.where(q.where)
 
             if q.sort:
                 output = output.sort(q.sort)
 
             if q.select:
                 output = output.select(q.select)
-        #TODO: ADD EXTRA COLUMN DESCRIPTIONS TO RESULTING SCHEMA
+
+        # TODO: ADD EXTRA COLUMN DESCRIPTIONS TO RESULTING SCHEMA
         for param in q.window:
             output.window(param)
 
@@ -131,7 +124,7 @@ class ListContainer(Container, jx_base.Namespace, jx_base.Table):
         THE set CLAUSE IS A DICT MAPPING NAMES TO VALUES
         THE where CLAUSE IS A JSON EXPRESSION FILTER
         """
-        command = wrap(command)
+        command = to_data(command)
         command_clear = listwrap(command["clear"])
         command_set = command.set.items()
         command_where = jx.get(command.where)
@@ -191,13 +184,13 @@ class ListContainer(Container, jx_base.Namespace, jx_base.Table):
             def selector(d):
                 output = Data()
                 for n, p in push_and_pull:
-                    output[n] = unwraplist(p(wrap(d)))
+                    output[n] = unwraplist(p(to_data(d)))
                 return unwrap(output)
 
-            new_data = map(selector, self.data)
+            new_data = list(map(selector, self.data))
         else:
             select_value = jx_expression_to_function(select.value)
-            new_data = map(select_value, self.data)
+            new_data = list(map(select_value, self.data))
             if is_op(select.value, Variable):
                 column = copy(first(c for c in self.schema.columns if c.name == select.value.var))
                 column.name = '.'
@@ -212,9 +205,9 @@ class ListContainer(Container, jx_base.Namespace, jx_base.Table):
 
     def format(self, format):
         if format == "table":
-            frum = convert.list2table(self.data, self._schema.lookup.keys())
+            frum = list2table(self.data, self._schema.lookup.keys())
         elif format == "cube":
-            frum = convert.list2cube(self.data, self.schema.lookup.keys())
+            frum = list2cube(self.data, self.schema.lookup.keys())
         else:
             frum = self.__data__()
 
@@ -232,7 +225,7 @@ class ListContainer(Container, jx_base.Namespace, jx_base.Table):
                     group = Data()
                     for k, gg in zip(keys, g):
                         group[k] = gg
-                    yield (group, wrap(list(v)))
+                    yield (group, to_data(list(v)))
 
             return _output()
         except Exception as e:
@@ -246,12 +239,12 @@ class ListContainer(Container, jx_base.Namespace, jx_base.Table):
 
     def __data__(self):
         if first(self.schema.columns).name=='.':
-            return wrap({
+            return dict_to_data({
                 "meta": {"format": "list"},
                 "data": self.data
             })
         else:
-            return wrap({
+            return dict_to_data({
                 "meta": {"format": "list"},
                 "data": [{k: unwraplist(v) for k, v in row.items()} for row in self.data]
             })
@@ -268,7 +261,7 @@ class ListContainer(Container, jx_base.Namespace, jx_base.Table):
         return self.data[item]
 
     def __iter__(self):
-        return (wrap(d) for d in self.data)
+        return (to_data(d) for d in self.data)
 
     def __len__(self):
         return len(self.data)
@@ -298,10 +291,11 @@ def _exec(code):
         Log.error("Could not execute {{code|quote}}", code=code, cause=e)
 
 
-from jx_python import jx
-
 DUAL = ListContainer(
     name="dual",
     data=[{}],
     schema=Schema(table_name="dual", columns=UniqueIndex(keys=("name",)))
 )
+
+
+export("jx_base.container", ListContainer)

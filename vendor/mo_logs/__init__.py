@@ -14,88 +14,102 @@ import platform
 import sys
 from datetime import datetime
 
-from mo_dots import Data, FlatList, coalesce, is_data, is_list, listwrap, unwraplist, wrap
-from mo_future import PY3, is_text, text
-from mo_logs import constants, exceptions, strings
+from mo_dots import (
+    Data,
+    FlatList,
+    coalesce,
+    is_list,
+    listwrap,
+    unwraplist,
+    dict_to_data,
+    is_data,
+)
+from mo_future import PY3, is_text, text, STDOUT
+from mo_imports import delay_import
+from mo_kwargs import override
+
+from mo_logs import constants as _constants, exceptions, strings
 from mo_logs.exceptions import Except, LogItem, suppress_exception
+from mo_logs.log_usingStream import StructuredLogger_usingStream
 from mo_logs.strings import CR, indent
 
 _Thread = None
-if PY3:
-    STDOUT = sys.stdout.buffer
-else:
-    STDOUT = sys.stdout
 
 
 class Log(object):
     """
     FOR STRUCTURED LOGGING AND EXCEPTION CHAINING
     """
+
     trace = False
     main_log = None
     logging_multi = None
-    profiler = None   # simple pypy-friendly profiler
+    profiler = None  # simple pypy-friendly profiler
     error_mode = False  # prevent error loops
 
     @classmethod
-    def start(cls, settings=None):
+    @override("settings")
+    def start(
+        cls,
+        trace=False,
+        cprofile=False,
+        constants=None,
+        logs=None,
+        app_name=None,
+        settings=None,
+    ):
         """
         RUN ME FIRST TO SETUP THE THREADED LOGGING
-        http://victorlin.me/2012/08/good-logging-practice-in-python/
+        https://fangpenlin.com/posts/2012/08/26/good-logging-practice-in-python/
 
-        log       - LIST OF PARAMETERS FOR LOGGER(S)
-        trace     - SHOW MORE DETAILS IN EVERY LOG LINE (default False)
-        cprofile  - True==ENABLE THE C-PROFILER THAT COMES WITH PYTHON (default False)
-                    USE THE LONG FORM TO SET THE FILENAME {"enabled": True, "filename": "cprofile.tab"}
-        profile   - True==ENABLE pyLibrary SIMPLE PROFILING (default False) (eg with Profiler("some description"):)
-                    USE THE LONG FORM TO SET FILENAME {"enabled": True, "filename": "profile.tab"}
-        constants - UPDATE MODULE CONSTANTS AT STARTUP (PRIMARILY INTENDED TO CHANGE DEBUG STATE)
+        :param trace: SHOW MORE DETAILS IN EVERY LOG LINE (default False)
+        :param cprofile: True==ENABLE THE C-PROFILER THAT COMES WITH PYTHON (default False)
+                         USE THE LONG FORM TO SET THE FILENAME {"enabled": True, "filename": "cprofile.tab"}
+        :param constants: UPDATE MODULE CONSTANTS AT STARTUP (PRIMARILY INTENDED TO CHANGE DEBUG STATE)
+        :param logs: LIST OF PARAMETERS FOR LOGGER(S)
+        :param app_name: GIVE THIS APP A NAME, AND RETURN A CONTEXT MANAGER
+        :param settings: ALL THE ABOVE PARAMTERS
+        :return:
         """
-        global _Thread
-        if not settings:
-            return
-        settings = wrap(settings)
+        global _Thread  # REQUIRED FOR trace
+        if app_name:
+            return LoggingContext(app_name)
 
         Log.stop()
 
         cls.settings = settings
-        cls.trace = coalesce(settings.trace, False)
-        if cls.trace:
+        cls.trace = trace
+        if trace:
             from mo_threads import Thread as _Thread
+
             _ = _Thread
 
         # ENABLE CPROFILE
-        if settings.cprofile is False:
-            settings.cprofile = {"enabled": False}
-        elif settings.cprofile is True:
-            if isinstance(settings.cprofile, bool):
-                settings.cprofile = {"enabled": True, "filename": "cprofile.tab"}
-        if settings.cprofile.enabled:
+        if cprofile is False:
+            cprofile = settings.cprofile = Data(enabled=False)
+        elif cprofile is True:
+            cprofile = settings.cprofile = Data(enabled=True, filename="cprofile.tab")
+        if is_data(cprofile) and cprofile.enabled:
             from mo_threads import profiles
+
             profiles.enable_profilers(settings.cprofile.filename)
 
-        if settings.profile is True or (is_data(settings.profile) and settings.profile.enabled):
-            Log.error("REMOVED 2018-09-02, Activedata revision 3f30ff46f5971776f8ba18")
-            # from mo_logs import profiles
-            #
-            # if isinstance(settings.profile, bool):
-            #     profiles.ON = True
-            #     settings.profile = {"enabled": True, "filename": "profile.tab"}
-            #
-            # if settings.profile.enabled:
-            #     profiles.ON = True
+        if constants:
+            _constants.set(constants)
 
-        if settings.constants:
-            constants.set(settings.constants)
-
-        logs = coalesce(settings.log, settings.logs)
+        logs = coalesce(settings.log, logs)
         if logs:
             cls.logging_multi = StructuredLogger_usingMulti()
             for log in listwrap(logs):
-                Log.add_log(Log.new_instance(log))
+                Log._add_log(Log.new_instance(log))
 
             from mo_logs.log_usingThread import StructuredLogger_usingThread
-            cls.main_log = StructuredLogger_usingThread(cls.logging_multi)
+
+            old_log, cls.main_log = (
+                cls.main_log,
+                StructuredLogger_usingThread(cls.logging_multi),
+            )
+            old_log.stop()
 
     @classmethod
     def stop(cls):
@@ -104,18 +118,18 @@ class Log(object):
         EXECUTING MULUTIPLE TIMES IN A ROW IS SAFE, IT HAS NO NET EFFECT, IT STILL LOGS TO stdout
         :return: NOTHING
         """
-        main_log, cls.main_log = cls.main_log, StructuredLogger_usingStream(STDOUT)
-        main_log.stop()
+        old_log, cls.main_log = cls.main_log, StructuredLogger_usingStream(STDOUT)
+        old_log.stop()
 
     @classmethod
-    def new_instance(cls, settings):
-        settings = wrap(settings)
-
+    @override("settings")
+    def new_instance(cls, log_type=None, settings=None):
         if settings["class"]:
             if settings["class"].startswith("logging.handlers."):
+                from mo_logs.log_usingThread import StructuredLogger_usingThread
                 from mo_logs.log_usingHandler import StructuredLogger_usingHandler
 
-                return StructuredLogger_usingHandler(settings)
+                return StructuredLogger_usingThread(StructuredLogger_usingHandler(settings))
             else:
                 with suppress_exception:
                     from mo_logs.log_usingLogger import make_log_from_settings
@@ -123,49 +137,66 @@ class Log(object):
                     return make_log_from_settings(settings)
                 # OH WELL :(
 
-        if settings.log_type == "logger":
+        if log_type == "logger":
             from mo_logs.log_usingLogger import StructuredLogger_usingLogger
+
             return StructuredLogger_usingLogger(settings)
-        if settings.log_type == "file" or settings.file:
+        if log_type == "file" or settings.file:
             return StructuredLogger_usingFile(settings.file)
-        if settings.log_type == "file" or settings.filename:
+        if log_type == "file" or settings.filename:
             return StructuredLogger_usingFile(settings.filename)
-        if settings.log_type == "console":
-            from mo_logs.log_usingThreadedStream import StructuredLogger_usingThreadedStream
-            return StructuredLogger_usingThreadedStream(STDOUT)
-        if settings.log_type == "mozlog":
+        if log_type == "console":
+            from mo_logs.log_usingThread import StructuredLogger_usingThread
+
+            return StructuredLogger_usingThread(StructuredLogger_usingStream(STDOUT))
+        if log_type == "mozlog":
             from mo_logs.log_usingMozLog import StructuredLogger_usingMozLog
-            return StructuredLogger_usingMozLog(STDOUT, coalesce(settings.app_name, settings.appname))
-        if settings.log_type == "stream" or settings.stream:
-            from mo_logs.log_usingThreadedStream import StructuredLogger_usingThreadedStream
-            return StructuredLogger_usingThreadedStream(settings.stream)
-        if settings.log_type == "elasticsearch" or settings.stream:
-            from mo_logs.log_usingElasticSearch import StructuredLogger_usingElasticSearch
+
+            return StructuredLogger_usingMozLog(
+                STDOUT, coalesce(settings.app_name, settings.appname)
+            )
+        if log_type == "stream" or settings.stream:
+            from mo_logs.log_usingThread import StructuredLogger_usingThread
+
+            return StructuredLogger_usingThread(StructuredLogger_usingStream(settings.stream))
+        if log_type == "elasticsearch" or settings.stream:
+            from mo_logs.log_usingElasticSearch import (
+                StructuredLogger_usingElasticSearch,
+            )
+
             return StructuredLogger_usingElasticSearch(settings)
-        if settings.log_type == "email":
+        if log_type == "email":
             from mo_logs.log_usingEmail import StructuredLogger_usingEmail
+
             return StructuredLogger_usingEmail(settings)
-        if settings.log_type == "ses":
+        if log_type == "ses":
             from mo_logs.log_usingSES import StructuredLogger_usingSES
+
             return StructuredLogger_usingSES(settings)
-        if settings.log_type.lower() in ["nothing", "none", "null"]:
+        if log_type.lower() in ["nothing", "none", "null"]:
             from mo_logs.log_usingNothing import StructuredLogger
+
             return StructuredLogger()
 
-        Log.error("Log type of {{log_type|quote}} is not recognized", log_type=settings.log_type)
+        Log.error("Log type of {{config|json}} is not recognized", config=settings)
 
     @classmethod
-    def add_log(cls, log):
+    def _add_log(cls, log):
         cls.logging_multi.add_log(log)
 
     @classmethod
+    def set_logger(cls, logger):
+        if cls.logging_multi:
+            cls.logging_multi.add_log(logger)
+        else:
+            from mo_logs.log_usingThread import StructuredLogger_usingThread
+
+            old_log, cls.main_log = cls.main_log, StructuredLogger_usingThread(logger)
+            old_log.stop()
+
+    @classmethod
     def note(
-        cls,
-        template,
-        default_params={},
-        stack_depth=0,
-        log_context=None,
-        **more_params
+        cls, template, default_params={}, stack_depth=0, log_context=None, **more_params
     ):
         """
         :param template: *string* human readable string with placeholders for parameters
@@ -184,10 +215,10 @@ class Log(object):
                 context=exceptions.NOTE,
                 format=template,
                 template=template,
-                params=dict(default_params, **more_params)
+                params=dict(default_params, **more_params),
             ),
             timestamp,
-            stack_depth+1
+            stack_depth + 1,
         )
 
     @classmethod
@@ -224,21 +255,18 @@ class Log(object):
         cause = unwraplist([Except.wrap(c) for c in listwrap(cause)])
         trace = exceptions.get_stacktrace(stack_depth + 1)
 
-        e = Except(exceptions.UNEXPECTED, template=template, params=params, cause=cause, trace=trace)
-        Log._annotate(
-            e,
-            timestamp,
-            stack_depth+1
+        e = Except(
+            exceptions.UNEXPECTED,
+            template=template,
+            params=params,
+            cause=cause,
+            trace=trace,
         )
+        Log._annotate(e, timestamp, stack_depth + 1)
 
     @classmethod
     def alarm(
-        cls,
-        template,
-        default_params={},
-        stack_depth=0,
-        log_context=None,
-        **more_params
+        cls, template, default_params={}, stack_depth=0, log_context=None, **more_params
     ):
         """
         :param template: *string* human readable string with placeholders for parameters
@@ -249,16 +277,18 @@ class Log(object):
         :return:
         """
         timestamp = datetime.utcnow()
-        format = ("*" * 80) + CR + indent(template, prefix="** ").strip() + CR + ("*" * 80)
+        format = (
+            ("*" * 80) + CR + indent(template, prefix="** ").strip() + CR + ("*" * 80)
+        )
         Log._annotate(
             LogItem(
                 context=exceptions.ALARM,
                 format=format,
                 template=template,
-                params=dict(default_params, **more_params)
+                params=dict(default_params, **more_params),
             ),
             timestamp,
-            stack_depth + 1
+            stack_depth + 1,
         )
 
     alert = alarm
@@ -297,12 +327,14 @@ class Log(object):
         cause = unwraplist([Except.wrap(c) for c in listwrap(cause)])
         trace = exceptions.get_stacktrace(stack_depth + 1)
 
-        e = Except(exceptions.WARNING, template=template, params=params, cause=cause, trace=trace)
-        Log._annotate(
-            e,
-            timestamp,
-            stack_depth+1
+        e = Except(
+            exceptions.WARNING,
+            template=template,
+            params=params,
+            cause=cause,
+            trace=trace,
         )
+        Log._annotate(e, timestamp, stack_depth + 1)
 
     @classmethod
     def error(
@@ -353,18 +385,19 @@ class Log(object):
         if add_to_trace:
             cause[0].trace.extend(trace[1:])
 
-        e = Except(context=exceptions.ERROR, template=template, params=params, cause=causes, trace=trace)
+        e = Except(
+            context=exceptions.ERROR,
+            template=template,
+            params=params,
+            cause=causes,
+            trace=trace,
+        )
         raise_from_none(e)
 
     @classmethod
-    def _annotate(
-        cls,
-        item,
-        timestamp,
-        stack_depth
-    ):
+    def _annotate(cls, item, timestamp, stack_depth):
         """
-        :param itemt:  A LogItemTHE TYPE OF MESSAGE
+        :param item:  A LogItem THE TYPE OF MESSAGE
         :param stack_depth: FOR TRACKING WHAT LINE THIS CAME FROM
         :return:
         """
@@ -381,12 +414,17 @@ class Log(object):
             format = CR + format
 
         if cls.trace:
-            log_format = item.format = "{{machine.name}} (pid {{machine.pid}}) - {{timestamp|datetime}} - {{thread.name}} - \"{{location.file}}:{{location.line}}\" - ({{location.method}}) - " + format
+            log_format = item.format = (
+                "{{machine.name}} (pid {{machine.pid}}) - {{timestamp|datetime}} -"
+                ' {{thread.name}} - "{{location.file}}:{{location.line}}" -'
+                " ({{location.method}}) - "
+                + format
+            )
             f = sys._getframe(stack_depth + 1)
             item.location = {
                 "line": f.f_lineno,
                 "file": text(f.f_code.co_filename),
-                "method": text(f.f_code.co_name)
+                "method": text(f.f_code.co_name),
             }
             thread = _Thread.current()
             item.thread = {"name": thread.name, "id": thread.id}
@@ -399,31 +437,59 @@ class Log(object):
         raise NotImplementedError
 
 
+class LoggingContext:
+    def __init__(self, app_name):
+        self.app_name = app_name
+        self.config = None
+
+    def __enter__(self):
+        self.config = config = startup.read_settings()
+        from mo_logs import constants
+
+        constants.set(config.constants)
+        Log.start(config.debug)
+        return config
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_val:
+            Log.warning(
+                "Problem with {{name}}! Shutting down.",
+                name=self.app_name,
+                cause=exc_val,
+            )
+        Log.stop()
+
+
 def _same_frame(frameA, frameB):
     return (frameA.line, frameA.file) == (frameB.line, frameB.file)
 
 
 # GET THE MACHINE METADATA
-machine_metadata = wrap({
-    "pid":  os.getpid(),
+machine_metadata = dict_to_data({
+    "pid": os.getpid(),
     "python": text(platform.python_implementation()),
     "os": text(platform.system() + platform.release()).strip(),
-    "name": text(platform.node())
+    "name": text(platform.node()),
 })
 
 
 def raise_from_none(e):
     raise e
 
+
 if PY3:
     exec("def raise_from_none(e):\n    raise e from None\n", globals(), locals())
 
-
-from mo_logs.log_usingFile import StructuredLogger_usingFile
-from mo_logs.log_usingMulti import StructuredLogger_usingMulti
-from mo_logs.log_usingStream import StructuredLogger_usingStream
-
+StructuredLogger_usingFile = delay_import(
+    "mo_logs.log_usingFile.StructuredLogger_usingFile"
+)
+StructuredLogger_usingMulti = delay_import(
+    "mo_logs.log_usingMulti.StructuredLogger_usingMulti"
+)
+StructuredLogger_usingThread = delay_import(
+    "mo_logs.log_usingThread.StructuredLogger_usingThread"
+)
+startup = delay_import("mo_logs.startup")
 
 if not Log.main_log:
     Log.main_log = StructuredLogger_usingStream(STDOUT)
-

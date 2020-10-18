@@ -12,7 +12,7 @@ from collections import Mapping
 
 from mo_deploy.utils import Requirement, parse_req
 from mo_dots import coalesce, wrap, listwrap
-from mo_files import File
+from mo_files import File, TempDirectory
 from mo_future import is_binary, is_text, sort_using_key, text
 from mo_json import value2json
 from mo_logs import Except, Log
@@ -74,10 +74,11 @@ class Module(object):
             )
             self.update_dev("update version number")
             self.update_master_locally(self.graph.next_version)
+            self.run_tests()
             self.pypi()
             self.local([self.git, "push", "origin", self.master_branch])
-        except Exception as e:
-            e = Except.wrap(e)
+        except Exception as cause:
+            cause = Except.wrap(cause)
             self.local([self.git, "checkout", "-f", master_rev])
             self.local(
                 [self.git, "tag", "--delete", text(self.graph.next_version)],
@@ -87,7 +88,7 @@ class Module(object):
                 [self.git, "branch", "-D", self.master_branch], raise_on_error=False
             )
             self.local([self.git, "checkout", "-b", self.master_branch])
-            Log.error("Can not deploy", cause=e)
+            Log.error("Can not deploy", cause=cause)
         finally:
             self.local([self.git, "checkout", self.dev_branch])
 
@@ -285,6 +286,25 @@ class Module(object):
                 dir=self.directory.name,
                 cause=e,
             )
+
+    def run_tests(self):
+        # SETUP NEW ENVIRONMENT
+        with TempDirectory() as temp:
+            # python -m pip install virtualenv  # venv is buggy on Windows
+            # REM IMPORTANT: Notice the dot in `.venv`
+            # python -m virtualenv .venv
+            # .venv\Scripts\activate
+            # pip install -r requirements\dev.txt
+            # pip install -r requirements\common.txt
+
+            self.local([self.pip, "install", "virtualenv"])
+            self.local([self.python, "-m", "virtualenv", ".venv"], cwd=temp)
+            python = temp/".venv"/"Scripts"/"python.exe"
+            pip = temp/".venv"/"Scripts"/"pip.exe"
+            self.local([pip, "install", "."])
+            self.local([pip, "install", "-r", "tests/requirements.txt"])
+            process, stdout, stderr = self.local([python, "-m", "unittest", "discover", "tests"])
+
 
     def local(self, args, raise_on_error=True, show_all=False, cwd=None):
         try:
