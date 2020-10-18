@@ -14,10 +14,11 @@ from mo_http import http
 
 from mo_deploy.utils import Requirement, parse_req
 from mo_dots import coalesce, wrap, listwrap
+from mo_dots.lists import last
 from mo_files import File, TempDirectory
 from mo_future import is_binary, is_text, sort_using_key, text
 from mo_json import value2json
-from mo_logs import Except, Log
+from mo_logs import Except, Log, strings
 from mo_math import randoms
 from mo_threads.multiprocess import Command
 from pyLibrary.meta import cache
@@ -311,7 +312,13 @@ class Module(object):
                 "discover",
                 "tests",
             ])
-            Log.note("test results:{{stdout}}", stdout=stdout)
+            # Log.note("STDOUT\n{{stdout|indent}}", stdout=stdout)
+            num_tests = int(strings.between(stderr[-2], "Ran ", " tests"))
+            if num_tests == 0:
+                Log.error("Expecting to run some tests: {{error}}", error=stderr[-2])
+            if not last(stderr).startswith("OK"):
+                Log.error("Expecting all tests to pass: {{error}}", error=last(stderr))
+            Log.note("STDOUT\n{{stderr|indent}}", stderr=stderr)
 
     def local(self, args, raise_on_error=True, show_all=False, cwd=None):
         try:
