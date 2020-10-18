@@ -11,7 +11,7 @@ from __future__ import division, unicode_literals
 import operator
 import re
 
-from mo_future import text_type
+from mo_future import text
 from mo_logs import Log
 
 

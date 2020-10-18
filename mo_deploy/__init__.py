@@ -10,8 +10,7 @@ from __future__ import division, unicode_literals
 
 from mo_deploy.module import Module
 from mo_deploy.module_graph import ModuleGraph
-from mo_dots import coalesce, listwrap
-from mo_future import input
+from mo_dots import listwrap
 from mo_logs import Log, constants, startup
 
 

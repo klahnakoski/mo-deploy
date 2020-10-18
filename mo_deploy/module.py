@@ -10,15 +10,16 @@ from __future__ import division, unicode_literals
 
 from collections import Mapping
 
+from mo_http import http
+
 from mo_deploy.utils import Requirement, parse_req
 from mo_dots import coalesce, wrap, listwrap
 from mo_files import File, TempDirectory
 from mo_future import is_binary, is_text, sort_using_key, text
 from mo_json import value2json
 from mo_logs import Except, Log
-from mo_math.randoms import Random
+from mo_math import randoms
 from mo_threads.multiprocess import Command
-from pyLibrary.env import http
 from pyLibrary.meta import cache
 from pyLibrary.utils import Version
 
@@ -299,12 +300,18 @@ class Module(object):
 
             self.local([self.pip, "install", "virtualenv"])
             self.local([self.python, "-m", "virtualenv", ".venv"], cwd=temp)
-            python = temp/".venv"/"Scripts"/"python.exe"
-            pip = temp/".venv"/"Scripts"/"pip.exe"
+            python = temp / ".venv" / "Scripts" / "python.exe"
+            pip = temp / ".venv" / "Scripts" / "pip.exe"
             self.local([pip, "install", "."])
             self.local([pip, "install", "-r", "tests/requirements.txt"])
-            process, stdout, stderr = self.local([python, "-m", "unittest", "discover", "tests"])
-
+            process, stdout, stderr = self.local([
+                python,
+                "-m",
+                "unittest",
+                "discover",
+                "tests",
+            ])
+            Log.note("test results:{{stdout}}", stdout=stdout)
 
     def local(self, args, raise_on_error=True, show_all=False, cwd=None):
         try:
@@ -397,7 +404,7 @@ class Module(object):
         self.svn_update()
         self.update_dev("updates from other projects")
         # COMPARE TO MASTER
-        branch_name = Random.string(10)
+        branch_name = randoms.string(10)
         self.local([self.git, "checkout", "-b", branch_name, self.master_branch])
         try:
             self.local([self.git, "merge", self.dev_branch])

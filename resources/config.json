@@ -47,7 +47,7 @@
         "mo-parsing"
     ],
     "constants": {
-        "pyLibrary.env.http.default_headers": {
+        "mo_http.http.default_headers": {
             "Referer": "https://github.com/klahnakoski/mo-deploy"
         },
         "mo_threads.multiprocess.DEBUG": false
