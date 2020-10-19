@@ -12,7 +12,7 @@ from __future__ import absolute_import, division, unicode_literals
 import sys
 from functools import update_wrapper
 
-from mo_dots import get_logger, is_data, to_data
+from mo_dots import get_logger, is_data, to_data, is_many
 from mo_future import (
     get_function_arguments,
     get_function_defaults,
@@ -188,6 +188,8 @@ def get_traceback(start):
 
 
 def _parse_traceback(tb):
+    if is_many(tb):
+        get_logger().error("Expecting a tracback object, not a list")
     trace = []
     while tb is not None:
         f = tb.tb_frame

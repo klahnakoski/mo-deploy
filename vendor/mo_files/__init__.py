@@ -443,6 +443,12 @@ class File(object):
     def __unicode__(self):
         return self.abspath
 
+    def __eq__(self, other):
+        return isinstance(other, File) and other.abspath == self.abspath
+
+    def __hash__(self):
+        return self.abspath.__hash__()
+
     def __str__(self):
         return self.abspath
 
@@ -581,6 +587,8 @@ def delete_daemon(file, caller_stack, please_stop):
     num_attempts = 0
     while not please_stop:
         try:
+            if file.exists:
+                return
             file.delete()
             return
         except Exception as e:

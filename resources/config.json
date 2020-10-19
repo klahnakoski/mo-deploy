@@ -44,7 +44,7 @@
 //        "c:/users/kyle/code/mo-parquet"
     ],
     "deploy": [
-        "mo-imports", "mo-parsing", "mo-testing"
+        "mo-threads", "mo-parsing", "mo-testing"
     ],
     "constants": {
         "mo_http.http.default_headers": {

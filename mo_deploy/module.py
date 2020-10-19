@@ -21,6 +21,7 @@ from mo_json import value2json
 from mo_logs import Except, Log, strings
 from mo_math import randoms
 from mo_threads.multiprocess import Command
+from mo_times import Timer
 from pyLibrary.meta import cache
 from pyLibrary.utils import Version
 
@@ -298,32 +299,48 @@ class Module(object):
             # .venv\Scripts\activate
             # pip install -r requirements\dev.txt
             # pip install -r requirements\common.txt
-
+            Log.note("install virtualenv")
             self.local([self.pip, "install", "virtualenv"])
             self.local([self.python, "-m", "virtualenv", ".venv"], cwd=temp)
             python = temp / ".venv" / "Scripts" / "python.exe"
             pip = temp / ".venv" / "Scripts" / "pip.exe"
-            self.local([pip, "install", "."])
-            self.local([pip, "install", "-r", "tests/requirements.txt"])
-            process, stdout, stderr = self.local([
-                python,
-                "-m",
-                "unittest",
-                "discover",
-                "tests",
-            ])
-            # Log.note("STDOUT\n{{stdout|indent}}", stdout=stdout)
-            num_tests = int(strings.between(stderr[-2], "Ran ", " tests"))
-            if num_tests == 0:
-                Log.error("Expecting to run some tests: {{error}}", error=stderr[-2])
-            if not last(stderr).startswith("OK"):
-                Log.error("Expecting all tests to pass: {{error}}", error=last(stderr))
-            Log.note("STDERR:\n{{stderr|indent}}", stderr=stderr)
+            while True:
+                try:
+                    Log.note("install self")
+                    self.local([pip, "install", "."])
+                    break
+                except Exception as cause:
+                    Log.warning("Problem with install", cause=cause)
+                    value = input("Can not install self.  Try again? (y/N): ")
+                    if value not in "yY":
+                        Log.error("Can not install self", cause=cause)
 
-    def local(self, args, raise_on_error=True, show_all=False, cwd=None):
+            Log.note("install testing requirements")
+            self.local([pip, "install", "-r", "tests/requirements.txt"])
+            with Timer("run tests"):
+                process, stdout, stderr = self.local(
+                    [python, "-m", "unittest", "discover", "tests",],
+                    env={"PYTHONPATH": "."},
+                )
+                if len(stderr) < 2:
+                    Log.error(
+                        "Expecting unittest results (at least two lines of output)"
+                    )
+                num_tests = int(strings.between(stderr[-2], "Ran ", " tests"))
+                if num_tests == 0:
+                    Log.error(
+                        "Expecting to run some tests: {{error}}", error=stderr[-2]
+                    )
+                if not last(stderr).startswith("OK"):
+                    Log.error(
+                        "Expecting all tests to pass: {{error}}", error=last(stderr)
+                    )
+                Log.note("STDERR:\n{{stderr|indent}}", stderr=stderr)
+
+    def local(self, args, raise_on_error=True, show_all=False, cwd=None, env=None):
         try:
             p = Command(
-                self.name, args, cwd=coalesce(cwd, self.directory)
+                self.name, args, cwd=coalesce(cwd, self.directory), env=env
             ).join(raise_on_error=raise_on_error)
             stdout = list(p.stdout)
             stderr = list(p.stderr)
