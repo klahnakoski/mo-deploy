@@ -42,7 +42,7 @@ class ModuleGraph(object):
             )
 
             for req in m.get_requirements(
-                [Requirement(k, ">=", v) for k, v in versions.items()]
+                [Requirement(k, "==", v) for k, v in versions.items()]
             ):
                 with graph_lock:
                     graph[module_name].add(req.name)

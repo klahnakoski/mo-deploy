@@ -12,6 +12,7 @@ import operator
 import re
 
 from mo_future import text
+
 from mo_logs import Log
 
 
@@ -31,10 +32,10 @@ class Requirement(object):
 
         if self.type is None:
             return other
-        elif _op_to_func[self.type](self.version, other.version):
+        elif _op_to_func[self.type](other.version, self.version):
             if other.type is None:
                 return self
-            elif _op_to_func[other.type](other.version, self.version):
+            elif _op_to_func[other.type](self.version, other.version):
                 return Requirement(
                     name=self.name, type="==", version=max(self.version, other.version)
                 )
@@ -43,13 +44,13 @@ class Requirement(object):
         else:
             if other.type is None:
                 return self
-            elif _op_to_func[other.type](other.version, self.version):
+            elif _op_to_func[other.type](self.version, other.version):
                 return other
             else:
                 Log.error("versions do not interesct {v1} and {v2}", v1=self, v2=other)
 
     def __data__(self):
-        return text_type(self)
+        return text(self)
 
     def __str__(self):
         if self.type:
@@ -59,7 +60,7 @@ class Requirement(object):
 
     def __unicode__(self):
         if self.type:
-            return self.name + self.type + unicode(self.version)
+            return self.name + self.type + text(self.version)
         else:
             return self.name
 

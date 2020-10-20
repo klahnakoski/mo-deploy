@@ -299,13 +299,18 @@ class Module(object):
             # .venv\Scripts\activate
             # pip install -r requirements\dev.txt
             # pip install -r requirements\common.txt
+            python = temp / ".venv" / "Scripts" / "python.exe"
+            pip = temp / ".venv" / "Scripts" / "pip.exe"
+
             Log.note("install virtualenv")
             self.local([self.pip, "install", "virtualenv"])
             self.local([self.python, "-m", "virtualenv", ".venv"], cwd=temp)
-            python = temp / ".venv" / "Scripts" / "python.exe"
-            pip = temp / ".venv" / "Scripts" / "pip.exe"
+            Log.note("install testing requirements")
+            self.local([pip, "install", "-r", "tests/requirements.txt"])
+
             while True:
                 try:
+                    # DONE AFTER TESTING REQUIREMENTS TO ENSURE PINNED VERSIONS ARE USED
                     Log.note("install self")
                     self.local([pip, "install", "."])
                     break
@@ -315,8 +320,6 @@ class Module(object):
                     if value not in "yY":
                         Log.error("Can not install self", cause=cause)
 
-            Log.note("install testing requirements")
-            self.local([pip, "install", "-r", "tests/requirements.txt"])
             with Timer("run tests"):
                 process, stdout, stderr = self.local(
                     [python, "-m", "unittest", "discover", "tests",],
@@ -372,7 +375,7 @@ class Module(object):
             if r.name not in self.graph.graph or not hasattr(self.graph, "next_version")
             else Requirement(
                 name=r.name,
-                type=">=",
+                type="==",
                 version=self.graph.get_version(r.name),  # ALREADY THE MAX
             )
             for line in req.read_lines()
