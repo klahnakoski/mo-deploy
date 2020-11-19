@@ -109,7 +109,7 @@ class Module(object):
             + "from __future__ import unicode_literals\n"
             + "from setuptools import setup\n"
             + "setup(\n"
-            + ",\n".join("    " + k + "=" + value2python(v) for k, v in setup.items())
+            + ",\n".join("    " + k + "=" + value2python(v) for k, v in setup.items() if v != None)
             + "\n"
             + ")"
         )
@@ -306,11 +306,12 @@ class Module(object):
             self.local([self.pip, "install", "virtualenv"])
             self.local([self.python, "-m", "virtualenv", ".venv"], cwd=temp)
             Log.note("install testing requirements")
-            self.local([pip, "install", "-r", "tests/requirements.txt"])
+            if (self.directory / "tests" / "requirements.txt").exists:
+                self.local([pip, "install", "-r", "tests/requirements.txt"])
 
             while True:
                 try:
-                    # DONE AFTER TESTING REQUIREMENTS TO ENSURE PINNED VERSIONS ARE USED
+                    # DONE AFTER tests/requirements.txt TO ENSURE PINNED VERSIONS ARE USED
                     Log.note("install self")
                     self.local([pip, "install", "."])
                     break
@@ -329,7 +330,7 @@ class Module(object):
                     Log.error(
                         "Expecting unittest results (at least two lines of output)"
                     )
-                num_tests = int(strings.between(stderr[-2], "Ran ", " tests"))
+                num_tests = int(strings.between(stderr[-2], "Ran ", " test"))
                 if num_tests == 0:
                     Log.error(
                         "Expecting to run some tests: {{error}}", error=stderr[-2]
@@ -343,7 +344,7 @@ class Module(object):
     def local(self, args, raise_on_error=True, show_all=False, cwd=None, env=None):
         try:
             p = Command(
-                self.name, args, cwd=coalesce(cwd, self.directory), env=env
+                self.name, args, cwd=coalesce(cwd, self.directory), env=env, max_stdout=10**6
             ).join(raise_on_error=raise_on_error)
             stdout = list(p.stdout)
             stderr = list(p.stderr)

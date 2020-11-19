@@ -3,6 +3,11 @@
 
 This document details my process for managing many libraries used in many projects, and keeping the code in sync across all the combinations.
 
+## Important
+
+* Project collaborators need know nothing of this process: Library code appears wholly owned by the project; it can be branched, merged, refactored, and changed as the collaborator pleases with no extra git commands.
+* Library maintainers need not know about each other's synchronization process; If you follow this process, then you need not coordinate with others who follow this same process. 
+
 ## Problem
 
 You have suite of libraries you would like to use in multiple projects. You would like to vendor the code for stability, but you would also like to update the code as if it belongs to the project. Some examples are:
@@ -57,7 +62,7 @@ Storing all your code in a monolithic repo allows you to change both the project
 * Difficult to teach what is important to a single project 
 * You can not share library code with yet-more projects 
 
-Starting a new project is difficult because you must import, in one way or another, your personal suite of useful code.  The mono repo solution has not *isolation* within the repo and has no *synchronization* without the repo. 
+Starting a new project is difficult because you must import, in one way or another, your personal suite of useful code.  The mono repo solution has no *isolation* within the repo and has no *synchronization* without the repo. 
 
 
 ```
@@ -72,10 +77,14 @@ Project_1
 
 
 
+
 Here is a diagram of a git repo, with three branches, each with (some version of) library code 
 
 <img src="library-versioning-one-project.png" style="width:226px">
 
+### Git Submodules?
+
+Git submodules has a major problem: The `.gitmodules` file in the project is responsible for the submodule (aka library) branch. This prevents **isolation**; the submodule code is not truly owned by the project, and changes to the submodule impact other projects immediately. Git submodules are really just hard-to-manage symbolic links.
 
 
 ## Solution: Two version control systems
@@ -226,9 +235,9 @@ Ensure you push your library updates to Subversion so other projects can use it
 
     svn commit my_library -m "lib updates"
 
-## Distributed Library Propagation
+## Chained Library Propagation
 
-A system with two svn servers allows third party projects to propagate library updates 
+Library maintainers need not know about each other's synchronization process. Any one maintainer will only ever use SVN server; it makes no sense for a person to manage to chain. But, in aggregate, over the network of people contributing to code, there may be SVN server chains used to propagate library changes between the projects they manage. Here is what it may look like: 
 
 <img src="library-versioning-propagation.png" style="width:391px">
 
@@ -238,4 +247,4 @@ In the diagram above, we can assume there are two programmers (1 and 2), each wi
 
 The SVN repo can be ephemeral: It is only needed to track changes and propagate them to another Git repo. Once the propagation is complete, the `.svn` directory can be removed, the `dev` branch deleted, and the SVN server destroyed: Another can take its place easily enough.
 
-In practice, this is not done because disk is cheap, and it takes time to setup a new SVN repo. But, when considering backups: Know that this technique requires no long-term SVN state.
+In practice, this is not done because disk is cheap, and it takes time to setup a new SVN repo. But, when considering what data to backup: Know that this technique requires no long-term SVN state.

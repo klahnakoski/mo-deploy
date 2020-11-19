@@ -246,7 +246,7 @@ class Command(object):
     available_locker = Lock("cmd lock")
     available_process = {}
 
-    def __init__(self, name, params, cwd=None, env=None, debug=False, shell=True, bufsize=-1):
+    def __init__(self, name, params, cwd=None, env=None, debug=False, shell=True, max_stdout=1024, bufsize=-1):
 
         self.name = name
         self.key = (
@@ -255,8 +255,8 @@ class Command(object):
             debug,
             shell
         )
-        self.stdout = Queue("stdout for "+name)
-        self.stderr = Queue("stderr for "+name)
+        self.stdout = Queue("stdout for "+name, max=max_stdout)
+        self.stderr = Queue("stderr for "+name, max=max_stdout)
 
         with Command.available_locker:
             avail = Command.available_process.setdefault(self.key, [])
