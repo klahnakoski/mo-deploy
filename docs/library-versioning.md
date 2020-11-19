@@ -52,7 +52,7 @@ This is fine for mature projects; the code is stable and production quality; it 
 
 If a library is still changing, or if it still needs stabilization work, then packaged projects make it difficult to change the library code.  Packages are not *expedient*.
 
-### Monoe Repo?
+### Mono Repo?
 
 Storing all your code in a monolithic repo allows you to change both the project code and the library code together. There are detriments:
 
