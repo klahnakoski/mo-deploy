@@ -17,6 +17,7 @@ from mo_logs import Log
 from mo_math import UNION
 from mo_threads import Lock
 from mo_threads.threads import AllThread
+from mo_times import Timer
 from pyLibrary.utils import Version
 
 
@@ -65,23 +66,25 @@ class ModuleGraph(object):
         # CALCULATE ALL DEPENDENCIES FOR EACH
         for m in list(graph.keys()):
             graph[m] = closure(m)
-        deploy_dependencies = [
-            self.modules[d] for d in closure(deploy) if d in self.modules
-        ]
 
-        Log.note(
-            "Required modules {{modules}}",
-            modules=[m.name for m in deploy_dependencies],
+        # WHAT MUST BE DEPLOYED?
+        deploy_dependencies = set(
+            self.modules[d] for d in closure(deploy) if d in self.modules
         )
 
-        # PREFETCH SOM MODULE STATUS
+        Log.note(
+            "Dependencies are {{modules}}",
+            modules=[m.name for m in deploy_dependencies],
+        )
+        # PREFETCH SOME MODULE STATUS
         def pre_fetch_state(d, please_stop):
             d.can_upgrade()
             d.last_deploy()
 
-        with AllThread() as a:
-            for d in deploy_dependencies:
-                a.run(d.name, pre_fetch_state, d)
+        with Timer("get modules' status"):
+            with AllThread() as a:
+                for d in deploy_dependencies:
+                    a.run(d.name, pre_fetch_state, d)
 
         # WHAT MODULES NEED UPDATE?
         self.todo_names = [
@@ -90,6 +93,24 @@ class ModuleGraph(object):
             if m.can_upgrade() or m.last_deploy() < m.get_version()[0]
         ]
         self.todo = self._sorted(self.todo_names)
+        self.todo_names = [t.name for t in self.todo]
+
+        # ANYTHING WE DEPEND ON, THAT HAS NOT CHANGED, BUT HAS A DEPENDENCY THAT DID CHANGE
+        version_bump = [
+            m.name
+            for m in deploy_dependencies
+            if m.name not in self.todo_names  # not already in the todo list
+            for d in graph[m.name]
+            if d != m.name and d in self.todo_names  # has a dependency in the todo list
+        ]
+
+        Log.note(
+            "No change, but requires version bump {{modules}}",
+            modules=[m.name for m in version_bump],
+        )
+
+        # UPGRADE TODO
+        self.todo = self._sorted(self.todo_names + version_bump)
         self.todo_names = [t.name for t in self.todo]
 
         if not self.todo:

@@ -25,7 +25,7 @@
         "c:/users/kyle/code/mo-collections",
         "c:/users/kyle/code/mo-testing",
         "c:/users/kyle/code/mo-json-config",
-//        "c:/users/kyle/code/pyLibrary",
+        "c:/users/kyle/code/pyLibrary",
 
         "c:/users/kyle/code/jx-python",
         "c:/users/kyle/code/jx-elasticsearch",
@@ -44,7 +44,7 @@
 //        "c:/users/kyle/code/mo-parquet"
     ],
     "deploy": [
-        "mo-threads", "mo-parsing", "mo-testing", "moz-sql-parser"
+         "mo-dots"
     ],
     "constants": {
         "mo_http.http.default_headers": {

@@ -307,13 +307,17 @@ class Module(object):
             self.local([self.python, "-m", "virtualenv", ".venv"], cwd=temp)
             Log.note("install testing requirements")
             if (self.directory / "tests" / "requirements.txt").exists:
-                self.local([pip, "install", "-r", "tests/requirements.txt"])
+                p, stdout, stderr = self.local([pip, "install", "-r", "tests/requirements.txt"])
+                if any("which is incompatible" in line for line in stderr):
+                    Log.error("Seems we have an incompativbility problem")
 
             while True:
                 try:
                     # DONE AFTER tests/requirements.txt TO ENSURE PINNED VERSIONS ARE USED
                     Log.note("install self")
-                    self.local([pip, "install", "."])
+                    p, stdout, stderr = self.local([pip, "install", "."])
+                    if any("which is incompatible" in line for line in stderr):
+                        Log.error("Seems we have an incompativbility problem")
                     break
                 except Exception as cause:
                     Log.warning("Problem with install", cause=cause)
@@ -325,6 +329,7 @@ class Module(object):
                 process, stdout, stderr = self.local(
                     [python, "-m", "unittest", "discover", "tests",],
                     env={"PYTHONPATH": "."},
+                    debug=True
                 )
                 if len(stderr) < 2:
                     Log.error(
@@ -340,11 +345,12 @@ class Module(object):
                         "Expecting all tests to pass: {{error}}", error=last(stderr)
                     )
                 Log.note("STDERR:\n{{stderr|indent}}", stderr=stderr)
+        Log.note("done")
 
-    def local(self, args, raise_on_error=True, show_all=False, cwd=None, env=None):
+    def local(self, args, raise_on_error=True, show_all=False, cwd=None, env=None, debug=False):
         try:
             p = Command(
-                self.name, args, cwd=coalesce(cwd, self.directory), env=env, max_stdout=10**6
+                self.name, args, cwd=coalesce(cwd, self.directory), env=env, max_stdout=10**6, debug=debug
             ).join(raise_on_error=raise_on_error)
             stdout = list(p.stdout)
             stderr = list(p.stderr)
