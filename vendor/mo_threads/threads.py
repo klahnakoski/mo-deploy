@@ -374,11 +374,11 @@ class Thread(BaseThread):
                             # THREAD FAILURES ARE A PROBLEM ONLY IF NO ONE WILL BE JOINING WITH IT
                             try:
                                 Log.error(
-                                    "Problem in thread {{name|quote}}", name=self.name, cause=e
+                                    "Problem in thread {{name|quote}}", name=self.name, cause=self.end_of_thread.exception
                                 )
-                            except Exception:
+                            except Exception as cause:
                                 sys.stderr.write(
-                                    str("ERROR in thread: " + self.name + " " + text(e) + "\n")
+                                    str("ERROR in thread: " + self.name + " " + text(cause) + "\n")
                                 )
                         elif self.end_of_thread.response != None:
                             Log.warning(

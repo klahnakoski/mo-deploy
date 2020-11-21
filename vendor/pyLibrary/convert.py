@@ -44,12 +44,7 @@ def string2datetime(value, format=None):
 
 
 def string2boolean(value):
-    if value in ["true", "T"]:
-        return True
-    elif value in ["false", "F"]:
-        return False
-    else:
-        return None
+    return _v2b.get(value)
 
 
 _v2b = {
@@ -207,56 +202,6 @@ def string2url(value):
         return "".join([_map2url[c] for c in value])
     else:
         Log.error("Expecting a string")
-
-
-# def url_param2value(param):
-#     """
-#     CONVERT URL QUERY PARAMETERS INTO DICT
-#     """
-#     if is_text(param):
-#         param = param.encode("ascii")
-#
-#     def _decode(v):
-#         output = []
-#         i = 0
-#         while i < len(v):
-#             c = v[i]
-#             if c == "%":
-#                 d = hex2bytes(v[i + 1:i + 3])
-#                 output.append(d)
-#                 i += 3
-#             else:
-#                 output.append(c)
-#                 i += 1
-#
-#         output = (b"".join(output)).decode("latin1")
-#         try:
-#             return json2value(output)
-#         except Exception:
-#             pass
-#         return output
-#
-#
-#     query = {}
-#     for p in param.split(b'&'):
-#         if not p:
-#             continue
-#         if p.find(b"=") == -1:
-#             k = p
-#             v = True
-#         else:
-#             k, v = p.split(b"=")
-#             v = _decode(v)
-#
-#         u = query.get(k)
-#         if u is None:
-#             query[k] = v
-#         elif is_list(u):
-#             u += [v]
-#         else:
-#             query[k] = [u, v]
-#
-#     return query
 
 
 def html2unicode(value):
