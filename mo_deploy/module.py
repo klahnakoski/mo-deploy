@@ -282,6 +282,7 @@ class Module(object):
             self.local([self.git, "merge", "--no-ff", "--no-commit", self.dev_branch])
             self.local([self.git, "commit", "-m", "release " + v])
             self.local([self.git, "tag", v])
+            self.local([self.git, "push", "--delete", "origin", v], raise_on_error=False)
             self.local([self.git, "push", "origin", v])
         except Exception as e:
             Log.error(
@@ -305,12 +306,8 @@ class Module(object):
             Log.note("install virtualenv")
             self.local([self.pip, "install", "virtualenv"])
             self.local([self.python, "-m", "virtualenv", ".venv"], cwd=temp)
-            Log.note("install testing requirements")
-            if (self.directory / "tests" / "requirements.txt").exists:
-                p, stdout, stderr = self.local([pip, "install", "-r", "tests/requirements.txt"])
-                if any("which is incompatible" in line for line in stderr):
-                    Log.error("Seems we have an incompativbility problem")
 
+            # CLEAN INSTALL FIRST, TO TEST FOR VERSION COMPATIBILITY
             while True:
                 try:
                     # DONE AFTER tests/requirements.txt TO ENSURE PINNED VERSIONS ARE USED
@@ -324,6 +321,15 @@ class Module(object):
                     value = input("Can not install self.  Try again? (y/N): ")
                     if value not in "yY":
                         Log.error("Can not install self", cause=cause)
+
+            # INSTALL TEST RESOURCES
+            Log.note("install testing requirements")
+            if (self.directory / "tests" / "requirements.txt").exists:
+                self.local([pip, "install", "-r", "tests/requirements.txt"])
+
+            # INSTALL SELF AGAIN TO ENSURE CORRECT VERSIONS ARE USED (EVEN IF CONFLICT WITH TEST RESOURCES)
+            Log.note("install self")
+            self.local([pip, "install", "."])
 
             with Timer("run tests"):
                 process, stdout, stderr = self.local(

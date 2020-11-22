@@ -106,7 +106,7 @@ class ModuleGraph(object):
 
         Log.note(
             "No change, but requires version bump {{modules}}",
-            modules=[m.name for m in version_bump],
+            modules=[m for m in version_bump],
         )
 
         # UPGRADE TODO

@@ -10,8 +10,6 @@ from __future__ import division, unicode_literals
 
 import datetime
 
-from mo_logs import Log
-
 from mo_dots import DataObject, Null, unwrap
 from mo_future import text, zip_longest
 
