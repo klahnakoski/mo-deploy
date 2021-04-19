@@ -42,7 +42,7 @@ class ModuleGraph(object):
                 last_version
             )
 
-            for req in m.get_requirements(
+            for req in m .get_requirements(
                 [Requirement(k, "==", v) for k, v in versions.items()]
             ):
                 with graph_lock:

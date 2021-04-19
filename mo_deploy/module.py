@@ -314,13 +314,20 @@ class Module(object):
                     Log.note("install self")
                     p, stdout, stderr = self.local([pip, "install", "."])
                     if any("which is incompatible" in line for line in stderr):
-                        Log.error("Seems we have an incompativbility problem")
+                        Log.error("Seems we have an incompatibility problem")
                     break
                 except Exception as cause:
                     Log.warning("Problem with install", cause=cause)
                     value = input("Can not install self.  Try again? (y/N): ")
                     if value not in "yY":
                         Log.error("Can not install self", cause=cause)
+
+            # RUN THE SMOKE TEST
+            Log.note("run tests/smoke_test.py")
+            if (self.directory / "tests" / "smoke_test.py").exists:
+                self.local([python, "tests/smoke_test.py"], debug=True)
+            else:
+                Log.warning("add test/smoke_test.py to ensure the library will run after installed")
 
             # INSTALL TEST RESOURCES
             Log.note("install testing requirements")
@@ -337,6 +344,7 @@ class Module(object):
                     env={"PYTHONPATH": "."},
                     debug=True
                 )
+                Log.note("TESTS DONE")
                 if len(stderr) < 2:
                     Log.error(
                         "Expecting unittest results (at least two lines of output)"
