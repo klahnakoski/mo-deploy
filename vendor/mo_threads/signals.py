@@ -17,6 +17,7 @@ from weakref import ref
 
 from mo_future import allocate_lock as _allocate_lock, text
 from mo_logs import Log
+from mo_dots import is_null
 
 DEBUG = False
 
@@ -153,7 +154,7 @@ class Signal(object):
         return text(repr(self._go))
 
     def __or__(self, other):
-        if other == None:
+        if is_null(other):
             return self
         if not isinstance(other, Signal):
             Log.error("Expecting OR with other signal")
@@ -168,7 +169,7 @@ class Signal(object):
         return self.__or__(other)
 
     def __and__(self, other):
-        if other == None or other:
+        if is_null(other) or other:
             return self
         if not isinstance(other, Signal):
             Log.error("Expecting OR with other signal")

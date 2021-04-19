@@ -12,17 +12,18 @@ import os
 import platform
 import subprocess
 
-from mo_dots import set_default, to_data, Null, Data
+from mo_dots import set_default, Null, Data, is_null
 from mo_files import File
 from mo_future import text
 from mo_logs import Log, strings
 from mo_logs.exceptions import Except
+from mo_times import Timer
+
 from mo_threads.lock import Lock
 from mo_threads.queues import Queue
 from mo_threads.signals import Signal
 from mo_threads.threads import THREAD_STOP, Thread
 from mo_threads.till import Till
-from mo_times import Timer
 
 DEBUG = False
 
@@ -56,7 +57,7 @@ class Process(object):
         self.stderr = Queue("stderr for process " + strings.quote(name), silent=not self.debug)
 
         try:
-            if cwd == None:
+            if is_null(cwd):
                 cwd = os.getcwd()
             else:
                 cwd = str(cwd)

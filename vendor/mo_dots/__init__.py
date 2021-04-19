@@ -43,7 +43,7 @@ _builtin_zip = zip
 _get = object.__getattribute__
 _set = object.__setattr__
 _new = object.__new__
-
+_dict_zip = zip
 
 ROOT_PATH = ["."]
 
@@ -71,13 +71,11 @@ def coalesce(*args):
 def zip(keys, values):
     """
     CONVERT LIST OF KEY/VALUE PAIRS TO Data
-    PLEASE `import dot`, AND CALL `dot.zip()`
+    PLEASE `import mo_dots`, AND CALL `mo_dots.zip()`
     """
     output = Data()
-    for i, k in enumerate(keys):
-        if i >= len(values):
-            break
-        output[k] = values[i]
+    for k, v in _dict_zip(keys, values):
+        output[k] = v
     return output
 
 
@@ -123,7 +121,7 @@ def tail_field(field):
         return ".", "."
     elif "." in field:
         if "\\." in field:
-            path = field.replace("\\.", "\a").split(".", 1)
+            path = field.replace("\\.", "\a").replace("\b", "\\.").split(".", 1)
             if len(path) == 1:
                 return path[0].replace("\a", "."), "."
             else:
@@ -140,15 +138,15 @@ def split_field(field):
     """
     if field == "." or field == None:
         return []
-    elif is_text(field) and "." in field:
+    elif is_text(field) and ("." in field or "\b" in field):
         if field.startswith(".."):
             remainder = field.lstrip(".")
             back = len(field) - len(remainder) - 1
             return [-1] * back + [
-                k.replace("\a", ".") for k in remainder.replace("\\.", "\a").split(".")
+                k.replace("\a", ".") for k in remainder.replace("\\.", "\a").replace("\b", "\\.").split(".")
             ]
         else:
-            return [k.replace("\a", ".") for k in field.replace("\\.", "\a").split(".")]
+            return [k.replace("\a", ".") for k in field.replace("\\.", "\a").replace("\b", "\\.").split(".")]
     else:
         return [field]
 
@@ -168,10 +166,10 @@ def join_field(path):
             if step != -1:
                 parents = "." + ("." * i)
                 return parents + ".".join([
-                    f.replace(".", "\\.") for f in path[i:] if f != None
-                ])
+                    f.replace(".", "\a") for f in path[i:] if f != None
+                ]).replace("\\.", "\b").replace("\a", "\\.")
         return "." + ("." * len(path))
-    output = ".".join([f.replace(".", "\\.") for f in path if f != None])
+    output = ".".join(f.replace(".", "\a") for f in path if f != None).replace("\\.", "\b").replace("\a", "\\.")
     return output if output else "."
 
     # potent = [f for f in path if f != "."]
@@ -243,6 +241,12 @@ def hash_value(v):
         return hash(v)
     else:
         return hash(tuple(sorted(hash_value(vv) for vv in v.values())))
+
+
+def fromkeys(keys, value=None):
+    if value == None:
+        return dict_to_data({})
+    return dict_to_data(dict.fromkeys(keys, value))
 
 
 def set_default(*dicts):
@@ -528,7 +532,7 @@ def lower_match(value, candidates):
 
 def dict_to_data(d):
     """
-    DO NOT CHECK TYPE
+    FASTEST WAY TO MAKE Data, DO NOT CHECK TYPE
     :param d: dict
     :return: Data
     """
@@ -727,7 +731,7 @@ def tuplewrap(value):
 def is_null(t):
     # RETURN True IF EFFECTIVELY NOTHING
     class_ = t.__class__
-    if class_ in (none_type, NullType):
+    if class_ in null_types:
         return True
     else:
         try:
@@ -736,22 +740,42 @@ def is_null(t):
             return False
 
 
+def is_not_null(t):
+    # RETURN True IF EFFECTIVELY SOMETHING
+    class_ = t.__class__
+    if class_ in null_types:
+        return False
+    elif class_ in data_types:
+        return True
+    elif class_ in finite_types and t:
+        return True
+    else:
+        return t != None
+
+
 def is_missing(t):
     # RETURN True IF EFFECTIVELY NOTHING
     class_ = t.__class__
-    if class_ in (none_type, NullType):
+    if class_ in null_types:
         return True
     elif class_ in data_types:
         return False
     elif class_ in finite_types and not t:
         return True
+    elif class_ is text and not t:
+        return True
     else:
         return t == None
 
 
+null_types = (none_type, NullType)
+
 # EXPORT
 export("mo_dots.nones", to_data)
+export("mo_dots.nones", null_types)
 
+export("mo_dots.datas", list_to_data)
+export("mo_dots.datas", dict_to_data)
 export("mo_dots.datas", to_data)
 export("mo_dots.datas", from_data)
 export("mo_dots.datas", coalesce)
@@ -759,6 +783,7 @@ export("mo_dots.datas", _getdefault)
 export("mo_dots.datas", hash_value)
 export("mo_dots.datas", listwrap)
 export("mo_dots.datas", literal_field)
+export("mo_dots.datas", null_types)
 
 export("mo_dots.lists", list_to_data)
 export("mo_dots.lists", to_data)

@@ -47,10 +47,10 @@ THREAD_TIMEOUT = "TIMEOUT"
 
 datetime.strptime("2012-01-01", "%Y-%m-%d")  # http://bugs.python.org/issue7980
 
-if PY3:
+try:
     STDOUT = sys.stdout.buffer
     STDIN = sys.stdin.buffer
-else:
+except Exception:
     STDOUT = sys.stdout
     STDIN = sys.stdin
 
