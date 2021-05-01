@@ -12,7 +12,7 @@ from __future__ import absolute_import, division, unicode_literals
 from jx_base.expressions import CaseOp as CaseOp_
 from jx_sqlite.expressions._utils import SQLang, check
 from mo_dots import coalesce, wrap
-from jx_sqlite.sqlite import (
+from mo_sql import (
     SQL_CASE,
     SQL_ELSE,
     SQL_END,

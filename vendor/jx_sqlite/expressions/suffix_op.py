@@ -16,7 +16,7 @@ from jx_sqlite.expressions.length_op import LengthOp
 from jx_sqlite.expressions.literal import Literal
 from jx_sqlite.expressions.right_op import RightOp
 from mo_dots import wrap
-from jx_sqlite.sqlite import SQL_FALSE, SQL_TRUE
+from mo_sql import SQL_FALSE, SQL_TRUE
 
 
 class SuffixOp(SuffixOp_):

@@ -213,6 +213,10 @@ SQL_CR = SQL("\n")
 
 
 class DB(object):
+    """
+    Quoting, or escaping, database entitiy names (columns, tables, etc) is database specific
+    """
+
     def quote_column(self, *path):
         raise NotImplementedError()
 

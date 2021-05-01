@@ -12,7 +12,7 @@ from __future__ import absolute_import, division, unicode_literals
 from jx_base.expressions import CountOp as CountOp_
 from jx_sqlite.expressions._utils import SQLang, check
 from mo_dots import wrap
-from jx_sqlite.sqlite import (
+from mo_sql import (
     SQL,
     SQL_CASE,
     SQL_ELSE,

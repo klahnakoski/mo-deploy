@@ -10,17 +10,17 @@ from __future__ import absolute_import, division, unicode_literals
 
 from mo_json import STRING
 
-from mo_dots import concat_field, set_default
+from mo_dots import concat_field
 
 from jx_base import Facts, Column
-from jx_sqlite.utils import UID, GUID, DIGITS_TABLE, ABOUT_TABLE
+from jx_sqlite import UID, GUID, DIGITS_TABLE, ABOUT_TABLE
 from jx_sqlite.namespace import Namespace
 from jx_sqlite.query_table import QueryTable
 from jx_sqlite.snowflake import Snowflake
-from mo_future import first, PY3, NEXT
+from mo_future import first, PY3
 from mo_kwargs import override
 from mo_logs import Log
-from jx_sqlite.sqlite import (
+from mo_sql import (
     SQL_SELECT,
     SQL_FROM,
     SQL_UPDATE,
@@ -33,7 +33,6 @@ from jx_sqlite.sqlite import (
     sql_create,
     sql_insert,
     json_type_to_sqlite_type)
-from mo_threads.lock import locked
 from mo_times import Date
 
 _config = None
@@ -41,18 +40,12 @@ _config = None
 
 class Container(object):
     @override
-    def __init__(
-            self,
-            db=None,  # EXISTING Sqlite3 DATBASE, OR CONFIGURATION FOR Sqlite DB
-            filename=None,  # FILE FOR THE DATABASE (None FOR MEMORY DATABASE)
-            kwargs=None   # See Sqlite parameters
-    ):
+    def __init__(self, db=None):
         global _config
         if isinstance(db, Sqlite):
             self.db = db
         else:
-            # PASS CALL PARAMETERS TO Sqlite
-            self.db = db = Sqlite(filename=filename, kwargs=set_default({}, db, kwargs))
+            self.db = db = Sqlite(db)
 
         self.db.create_new_functions()  # creating new functions: regexp
 
@@ -92,8 +85,10 @@ class Container(object):
                 while top_id < max_id:
                     yield top_id
                     top_id += 1
-
-        return locked(NEXT(output()))
+        if PY3:
+            return output().__next__
+        else:
+            return output().next
 
     def setup(self):
         if not self.db.about(ABOUT_TABLE):
