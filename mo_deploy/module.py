@@ -15,7 +15,7 @@ from mo_http import http
 from mo_deploy.utils import Requirement, parse_req
 from mo_dots import coalesce, wrap, listwrap
 from mo_dots.lists import last
-from mo_files import File, TempDirectory
+from mo_files import File, TempDirectory, URL
 from mo_future import is_binary, is_text, sort_using_key, text
 from mo_json import value2json
 from mo_logs import Except, Log, strings
@@ -116,7 +116,7 @@ class Module(object):
 
     @cache()
     def last_deploy(self):
-        url = "https://pypi.org/pypi/" + self.name + "/json"
+        url = URL("https://pypi.org/pypi") / self.name / "json"
         try:
             return max(
                 Version(k, prefix="v") for k in http.get_json(url).releases.keys()
