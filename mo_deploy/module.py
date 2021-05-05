@@ -109,7 +109,11 @@ class Module(object):
             + "from __future__ import unicode_literals\n"
             + "from setuptools import setup\n"
             + "setup(\n"
-            + ",\n".join("    " + k + "=" + value2python(v) for k, v in setup.items() if v != None)
+            + ",\n".join(
+                "    " + k + "=" + value2python(v)
+                for k, v in setup.items()
+                if v != None
+            )
             + "\n"
             + ")"
         )
@@ -282,7 +286,9 @@ class Module(object):
             self.local([self.git, "merge", "--no-ff", "--no-commit", self.dev_branch])
             self.local([self.git, "commit", "-m", "release " + v])
             self.local([self.git, "tag", v])
-            self.local([self.git, "push", "--delete", "origin", v], raise_on_error=False)
+            self.local(
+                [self.git, "push", "--delete", "origin", v], raise_on_error=False
+            )
             self.local([self.git, "push", "origin", v])
         except Exception as e:
             Log.error(
@@ -325,9 +331,16 @@ class Module(object):
             # RUN THE SMOKE TEST
             Log.note("run tests/smoke_test.py")
             if (self.directory / "tests" / "smoke_test.py").exists:
-                self.local([python, "tests/smoke_test.py"], debug=True)
+                self.local(
+                    [python, "tests/smoke_test.py"],
+                    env={"PYTHONPATH": ""},
+                    debug=True
+                )
             else:
-                Log.warning("add test/smoke_test.py to ensure the library will run after installed")
+                Log.warning(
+                    "add test/smoke_test.py to ensure the library will run after"
+                    " installed"
+                )
 
             # INSTALL TEST RESOURCES
             Log.note("install testing requirements")
@@ -342,7 +355,7 @@ class Module(object):
                 process, stdout, stderr = self.local(
                     [python, "-m", "unittest", "discover", "tests",],
                     env={"PYTHONPATH": "."},
-                    debug=True
+                    debug=True,
                 )
                 Log.note("TESTS DONE")
                 if len(stderr) < 2:
@@ -361,10 +374,17 @@ class Module(object):
                 Log.note("STDERR:\n{{stderr|indent}}", stderr=stderr)
         Log.note("done")
 
-    def local(self, args, raise_on_error=True, show_all=False, cwd=None, env=None, debug=False):
+    def local(
+        self, args, raise_on_error=True, show_all=False, cwd=None, env=None, debug=False
+    ):
         try:
             p = Command(
-                self.name, args, cwd=coalesce(cwd, self.directory), env=env, max_stdout=10**6, debug=debug
+                self.name,
+                args,
+                cwd=coalesce(cwd, self.directory),
+                env=env,
+                max_stdout=10 ** 6,
+                debug=debug,
             ).join(raise_on_error=raise_on_error)
             stdout = list(p.stdout)
             stderr = list(p.stderr)
