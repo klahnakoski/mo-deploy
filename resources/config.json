@@ -2,8 +2,11 @@
     "general": {
         "git": "C:\\Program Files\\Git\\cmd\\git.exe",
         "svn": "C:\\Program Files\\VisualSVN Server\\bin\\svn.exe",
-        "pip": "C:\\Python37\\Scripts\\pip.exe",
-        "python": "C:\\Python37\\python.exe",
+        "python": {
+            "3\\.7":"C:\\Python37\\python.exe",
+            "2\\.7":"C:\\Python27\\python.exe",
+            "3\\.6":"C:\\Users\\kyle\\AppData\\Local\\Programs\\Python\\Python36\\python.exe"
+        },
         "twine": "C:\\Python37\\Scripts\\twine.exe",
         "python_requires": null,
         "ignore_svn": "vendor/"
@@ -44,13 +47,13 @@
 //        "c:/users/kyle/code/mo-parquet"
     ],
     "deploy": [
-        "jx-sqlite"
+        "mo-dots"
     ],
     "constants": {
         "mo_http.http.default_headers": {
             "Referer": "https://github.com/klahnakoski/mo-deploy"
         },
-        "mo_threads.multiprocess.DEBUG_COMMAND": false
+        "mo_threads.multiprocess.DEBUG_COMMAND": true
     },
     "debug": {"trace": true}
 }

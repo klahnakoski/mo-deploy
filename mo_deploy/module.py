@@ -13,13 +13,14 @@ from collections import Mapping
 from mo_http import http
 
 from mo_deploy.utils import Requirement, parse_req
-from mo_dots import coalesce, wrap, listwrap
+from mo_dots import coalesce, wrap, listwrap, literal_field
 from mo_dots.lists import last
 from mo_files import File, TempDirectory, URL
 from mo_future import is_binary, is_text, sort_using_key, text
 from mo_json import value2json
 from mo_logs import Except, Log, strings
 from mo_math import randoms
+from mo_threads import Thread
 from mo_threads.multiprocess import Command
 from mo_times import Timer
 from pyLibrary.meta import cache
@@ -32,11 +33,11 @@ class Module(object):
     # FULL PATH TO EXECUTABLES
     git = "git"
     svn = "svn"
-    pip = "pip"
     twine = "twine"
-    python = "python"
+    python = {"3.7": "python"}
     python_requires = ">=2.7"
     ignore_svn = []
+    test_versions = []
 
     def __init__(self, info, graph):
         if isinstance(info, Mapping):
@@ -67,7 +68,7 @@ class Module(object):
             self.gen_setup_py_file()
             self.local(
                 [
-                    self.python,
+                    self.python['latest'],
                     "-c",
                     "from "
                     + self.name.replace("-", "_")
@@ -77,7 +78,11 @@ class Module(object):
             )
             self.update_dev("update version number")
             self.update_master_locally(self.graph.next_version)
-            self.run_tests()
+
+            # RUN TESTS IN PARALLEL
+            test_threads = [Thread.run("test "+v, self.run_tests, v) for v in self.test_versions]
+            Thread.join_all(test_threads)
+
             self.pypi()
             self.local([self.git, "push", "origin", self.master_branch])
         except Exception as cause:
@@ -148,7 +153,7 @@ class Module(object):
             self.scrub_pypi_residue()
 
             Log.note("run setup.py")
-            self.local([self.python, "setup.py", "sdist"], raise_on_error=True)
+            self.local([self.python['latest'], "setup.py", "sdist"], raise_on_error=True)
 
             Log.note("twine upload of {{dir}}", dir=self.directory.abspath)
             # python3 -m twine upload --repository-url https://test.pypi.org/legacy/ dist/*
@@ -189,15 +194,20 @@ class Module(object):
         if not req_file.exists:
             Log.error("Expecting a requirements.txt file")
 
-        # LOAD
+        # ENSURE PYTHON VERSION IS INCLUDED
         setup = setup_json.read_json(leaves=False)
-        if not any(
-            c.startswith("Programming Language :: Python")
-            for c in listwrap(setup.classifiers)
-        ):
-            Log.warning(
-                "expecting language classifier, like 'Programming Language :: Python ::"
-                " 3.7'"
+
+        # FIND VERSIONS FOR TESTING
+        self.test_versions = []
+        for c in listwrap(setup.classifiers):
+            if c.startswith("Programming Language :: Python"):
+                version = c.split("::")[-1].strip()
+                self.test_versions.append(version)
+                if not self.python[version]:
+                    Log.error("Expecting {{version}} in \"general.python\" settings", version=version)
+        if not self.test_versions:
+            Log.error(
+                "expecting language classifier, like 'Programming Language :: Python :: 3.7'"
             )
 
         # LONG DESCRIPTION
@@ -297,7 +307,7 @@ class Module(object):
                 cause=e,
             )
 
-    def run_tests(self):
+    def run_tests(self, python_version, please_stop):
         # SETUP NEW ENVIRONMENT
         with TempDirectory() as temp:
             # python -m pip install virtualenv  # venv is buggy on Windows
@@ -310,8 +320,8 @@ class Module(object):
             pip = temp / ".venv" / "Scripts" / "pip.exe"
 
             Log.note("install virtualenv")
-            self.local([self.pip, "install", "virtualenv"])
-            self.local([self.python, "-m", "virtualenv", ".venv"], cwd=temp)
+            self.local([self.python[python_version], "-m", "pip", "install", "virtualenv"])
+            self.local([self.python[python_version], "-m", "virtualenv", ".venv"], cwd=temp)
 
             # CLEAN INSTALL FIRST, TO TEST FOR VERSION COMPATIBILITY
             while True:

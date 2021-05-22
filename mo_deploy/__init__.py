@@ -8,9 +8,11 @@
 #
 from __future__ import division, unicode_literals
 
+from pyLibrary.utils import Version
+
 from mo_deploy.module import Module
 from mo_deploy.module_graph import ModuleGraph
-from mo_dots import listwrap
+from mo_dots import listwrap, Data, from_data
 from mo_logs import Log, constants, startup
 
 
@@ -20,9 +22,18 @@ def main():
         constants.set(settings.constants)
         Log.start(settings.debug)
 
+        # ENSURE python HAS latest
+        python = settings.general.python
+        latest = Version("0")
+        for version, path in python.items():
+            version = Version(version)
+            if version > latest:
+                python.latest = path
+                latest = version
+
         # SET Module VARIABLES (IN general)
         for k, v in settings.general.items():
-            setattr(Module, k, v)
+            setattr(Module, k, from_data(v))
 
         graph = ModuleGraph(listwrap(settings.managed), settings.deploy)
 
