@@ -8,6 +8,8 @@
 #
 from __future__ import division, unicode_literals
 
+from copy import copy
+
 from toposort import toposort
 
 from mo_deploy.module import Module, SETUPTOOLS
@@ -42,7 +44,7 @@ class ModuleGraph(object):
                 last_version
             )
 
-            for req in m .get_requirements(
+            for req in m.get_requirements(
                 [Requirement(k, "==", v) for k, v in versions.items()]
             ):
                 with graph_lock:
@@ -58,9 +60,9 @@ class ModuleGraph(object):
             prev = set()
             dependencies = set(listwrap(parents))
             while dependencies - prev:
-                prev = dependencies
+                prev = copy(dependencies)
                 for d in list(dependencies):
-                    dependencies |= graph[d]
+                    dependencies |= graph.get(d, set())
             return dependencies
 
         # CALCULATE ALL DEPENDENCIES FOR EACH
@@ -96,13 +98,13 @@ class ModuleGraph(object):
         self.todo_names = [t.name for t in self.todo]
 
         # ANYTHING WE DEPEND ON, THAT HAS NOT CHANGED, BUT HAS A DEPENDENCY THAT DID CHANGE
-        version_bump = [
+        version_bump = list(set(
             m.name
             for m in deploy_dependencies
             if m.name not in self.todo_names  # not already in the todo list
             for d in graph[m.name]
             if d != m.name and d in self.todo_names  # has a dependency in the todo list
-        ]
+        ))
 
         Log.note(
             "No change, but requires version bump {{modules}}",
@@ -110,7 +112,7 @@ class ModuleGraph(object):
         )
 
         # UPGRADE TODO
-        self.todo = self._sorted(self.todo_names + version_bump)
+        self.todo = self._sorted(set(self.todo_names + version_bump))
         self.todo_names = [t.name for t in self.todo]
 
         if not self.todo:

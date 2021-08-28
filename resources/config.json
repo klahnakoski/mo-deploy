@@ -3,6 +3,7 @@
         "git": "C:\\Program Files\\Git\\cmd\\git.exe",
         "svn": "C:\\Program Files\\VisualSVN Server\\bin\\svn.exe",
         "python": {
+            "3\\.9":"C:\\Python39\\python.exe",
             "3\\.7":"C:\\Python37\\python.exe",
             "2\\.7":"C:\\Python27\\python.exe",
             "3\\.6":"C:\\Users\\kyle\\AppData\\Local\\Programs\\Python\\Python36\\python.exe"
@@ -12,9 +13,11 @@
         "ignore_svn": "vendor/"
     },
     "managed": [
+
         "c:/users/kyle/code/mo-imports",
         "c:/users/kyle/code/mo-future",
         "c:/users/kyle/code/mo-dots",
+        "c:/users/kyle/code/mo-kwargs",
         "c:/users/kyle/code/mo-logs",
         "c:/users/kyle/code/mo-sql",
         "c:/users/kyle/code/mo-files",
@@ -24,7 +27,6 @@
         "c:/users/kyle/code/mo-math",
         "c:/users/kyle/code/mo-times",
         "c:/users/kyle/code/mo-json",
-        "c:/users/kyle/code/mo-kwargs",
         "c:/users/kyle/code/mo-collections",
         "c:/users/kyle/code/mo-testing",
         "c:/users/kyle/code/mo-json-config",
@@ -37,7 +39,7 @@
         "c:/users/kyle/code/jx-sqlite",
 
         "c:/users/kyle/code/mo-parsing",
-        "c:/users/kyle/code/moz-sql-parser"
+        "c:/users/kyle/code/mo-sql-parsing"
 
 //        "c:/users/kyle/code/mo-black"
 //        "c:/users/kyle/code/mo-fabric",
@@ -47,13 +49,13 @@
 //        "c:/users/kyle/code/mo-parquet"
     ],
     "deploy": [
-        "mo-dots"
+        "mo-sql-parsing"
     ],
     "constants": {
         "mo_http.http.default_headers": {
             "Referer": "https://github.com/klahnakoski/mo-deploy"
         },
-        "mo_threads.multiprocess.DEBUG_COMMAND": true
+        "mo_threads.multiprocess.DEBUG_COMMAND": false
     },
     "debug": {"trace": true}
 }

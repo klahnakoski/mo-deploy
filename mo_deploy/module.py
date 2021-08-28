@@ -77,12 +77,20 @@ class Module(object):
                 raise_on_error=False,
             )
             self.update_dev("update version number")
-            self.update_master_locally(self.graph.next_version)
 
             # RUN TESTS IN PARALLEL
-            test_threads = [Thread.run("test "+v, self.run_tests, v) for v in self.test_versions]
-            Thread.join_all(test_threads)
+            while True:
+                try:
+                    test_threads = [Thread.run("test "+v, self.run_tests, v) for v in self.test_versions]
+                    Thread.join_all(test_threads)
+                    break
+                except Exception as cause:
+                    Log.warning("Tests did not pass", cause=cause)
+                    value = input("Did not pass tests.  Try again? (y/N): ")
+                    if value not in "yY":
+                        Log.error("Can not install self", cause=cause)
 
+            self.update_master_locally(self.graph.next_version)
             self.pypi()
             self.local([self.git, "push", "origin", self.master_branch])
         except Exception as cause:
@@ -147,10 +155,21 @@ class Module(object):
                 f.delete()
 
     def pypi(self):
-
+        
         Log.note("Update PyPi for {{dir}}", dir=self.directory.abspath)
         try:
             self.scrub_pypi_residue()
+
+            # pip install pep517
+            # python -m pep517.build .
+            # python setup.py --version
+            #
+            # pyproject.toml
+            # [build-system]
+            # requires = ["setuptools", "wheel"]
+            # build-backend = "setuptools.build_meta"
+
+            #
 
             Log.note("run setup.py")
             self.local([self.python['latest'], "setup.py", "sdist"], raise_on_error=True)
@@ -183,6 +202,7 @@ class Module(object):
         setup_json = self.directory / SETUPTOOLS
         readme = self.directory / "README.md"
         req_file = self.directory / "requirements.txt"
+        test_req_file = self.directory / "tests" / "requirements.txt"
 
         # CHECK FILES EXISTENCE
         # if setup_file.exists:
@@ -236,6 +256,15 @@ class Module(object):
                 existing=declared_packages,
                 proposed=expected_packages,
             )
+
+        # EXTRA DEPENDENCIES
+        if test_req_file.exists:
+            setup.extras_require.tests = [
+                str(r)
+                for line in test_req_file.read_lines()
+                if line
+                for r in [parse_req(line)]
+            ]
 
         # VERSION
         setup.version = text(new_version)
@@ -324,25 +353,22 @@ class Module(object):
             self.local([self.python[python_version], "-m", "virtualenv", ".venv"], cwd=temp)
 
             # CLEAN INSTALL FIRST, TO TEST FOR VERSION COMPATIBILITY
-            while True:
-                try:
-                    # DONE AFTER tests/requirements.txt TO ENSURE PINNED VERSIONS ARE USED
-                    Log.note("install self")
-                    p, stdout, stderr = self.local([pip, "install", "."])
-                    if any("which is incompatible" in line for line in stderr):
-                        Log.error("Seems we have an incompatibility problem")
-                    break
-                except Exception as cause:
-                    Log.warning("Problem with install", cause=cause)
-                    value = input("Can not install self.  Try again? (y/N): ")
-                    if value not in "yY":
-                        Log.error("Can not install self", cause=cause)
+            try:
+                # DONE AFTER tests/requirements.txt TO ENSURE PINNED VERSIONS ARE USED
+                Log.note("install self")
+                p, stdout, stderr = self.local([pip, "install", "."])
+                if any("which is incompatible" in line for line in stderr):
+                    Log.error("Seems we have an incompatibility problem")
+                if any("conflicting dependencies" in line for line in stderr):
+                    Log.error("Seems we have a conflicting dependencies problem")
+            except Exception as cause:
+                Log.error("Problem with install", cause=cause)
 
             # RUN THE SMOKE TEST
             Log.note("run tests/smoke_test.py")
             if (self.directory / "tests" / "smoke_test.py").exists:
                 self.local(
-                    [python, "tests/smoke_test.py"],
+                    [python, "-Werror", "tests/smoke_test.py"],
                     env={"PYTHONPATH": ""},
                     debug=True
                 )
