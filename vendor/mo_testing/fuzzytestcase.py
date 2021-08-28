@@ -138,8 +138,10 @@ def assertAlmostEqual(test, expected, digits=None, places=None, msg=None, delta=
                     test=test,
                     expected=expected
                 )
+
             try:
-                return len(set(test)|expected) == len(expected)
+                if len(test|expected) != len(test):
+                    raise Exception()
             except:
                 for e in expected:
                     for t in test:
@@ -150,7 +152,7 @@ def assertAlmostEqual(test, expected, digits=None, places=None, msg=None, delta=
                             pass
                     else:
                         Log.error("Sets do not match. {{value|json}} not found in {{test|json}}", value=e, test=test)
-
+            return   # ok
         elif isinstance(expected, types.FunctionType):
             return expected(test)
         elif hasattr(test, "__iter__") and hasattr(expected, "__iter__"):

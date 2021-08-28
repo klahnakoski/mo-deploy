@@ -29,12 +29,12 @@ class Version(object):
         version = unwrap(version)
 
         if isinstance(version, tuple):
-            self.version = version
+            self.version = triple(version)
         elif isinstance(version, DataObject):
-            self.version = [0, 0, 0]
+            self.version = (0, 0, 0)
         elif isinstance(version, Version):
             self.prefix = version.prefix
-            self.version = version.version
+            self.version = triple(version.version)
         else:
             for i, c in enumerate(version):
                 if c in '0123456789':
@@ -47,9 +47,9 @@ class Version(object):
                         return int(v)
                     except Exception:
                         return v
-                self.version = tuple(map(scrub, version.split('.')))
+                self.version = triple(map(scrub, version.split('.')))
             except Exception:
-                self.version = [0, 0, 0]
+                self.version = (0, 0, 0)
 
     def __gt__(self, other):
         other = Version(other)
@@ -102,3 +102,7 @@ class Version(object):
     @property
     def mini(self):
         return self.version[2]
+
+
+def triple(version):
+    return (tuple(version) + (0, 0, 0))[:3]

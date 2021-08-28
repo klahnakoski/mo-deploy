@@ -58,7 +58,7 @@ class SQL(object):
                     and all(c not in other for c in ('"', "'", "`", "\\"))
             ):
                 return ConcatSQL(SQL(other), self)
-            Log.error("Can only concat other SQL")
+            Log.error("Can only concat other SQL", stack_depth=1)
         else:
             return ConcatSQL(other, self)
 
@@ -130,8 +130,6 @@ class ConcatSQL(SQL):
         A SEQUENCE OF SQL FOR EVENTUAL CONCATENATION
         """
         if ENABLE_TYPE_CHECKING:
-            if len(concat) == 1:
-                Log.error("Expecting at least 2 parameters")
             if any(not isinstance(s, SQL) for s in concat):
                 Log.error("Can only join other SQL")
         self.concat = concat
@@ -144,7 +142,9 @@ class ConcatSQL(SQL):
 
 NO_SQL = tuple()
 SQL_STAR = SQL(" * ")
-SQL_PLUS = SQL(" + ")
+SQL_PLUS = SQL_ADD = SQL_SUM = SQL(" + ")
+SQL_DIV = SQL(" / ")
+SQL_SUB = SQL(" - ")
 
 SQL_AND = SQL(" AND ")
 SQL_OR = SQL(" OR ")
@@ -157,6 +157,7 @@ SQL_THEN = SQL(" THEN ")
 SQL_ELSE = SQL(" ELSE ")
 SQL_END = SQL(" END ")
 
+SQL_CAST = SQL("CAST")
 SQL_SPACE = SQL(" ")
 SQL_COMMA = SQL(", ")
 SQL_UNION_ALL = SQL("\nUNION ALL\n")
@@ -230,6 +231,10 @@ def sql_list(list_):
 
 def sql_iso(*sql):
     return ConcatSQL(*((SQL_OP,) + sql + (SQL_CP,)))
+
+
+def sql_cast(expr, type):
+    return ConcatSQL(SQL_CAST, SQL_OP, expr, SQL_AS, TextSQL(type), SQL_CP)
 
 
 def sql_count(sql):
