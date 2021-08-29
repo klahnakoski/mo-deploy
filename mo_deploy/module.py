@@ -17,10 +17,10 @@ from mo_dots import coalesce, wrap, listwrap, literal_field
 from mo_dots.lists import last
 from mo_files import File, TempDirectory, URL
 from mo_future import is_binary, is_text, sort_using_key, text
-from mo_json import value2json
+from mo_json import value2json, json2value
 from mo_logs import Except, Log, strings
 from mo_math import randoms
-from mo_threads import Thread
+from mo_threads import Thread, Till
 from mo_threads.multiprocess import Command
 from mo_times import Timer
 from pyLibrary.meta import cache
@@ -160,6 +160,7 @@ class Module(object):
         try:
             self.scrub_pypi_residue()
 
+            # INSTRUCTIONS FOR USE OF pyproject.toml
             # pip install pep517
             # python -m pep517.build .
             # python setup.py --version
@@ -168,8 +169,6 @@ class Module(object):
             # [build-system]
             # requires = ["setuptools", "wheel"]
             # build-backend = "setuptools.build_meta"
-
-            #
 
             Log.note("run setup.py")
             self.local([self.python['latest'], "setup.py", "sdist"], raise_on_error=True)
@@ -197,6 +196,24 @@ class Module(object):
                 Log.error("not expected\n{{result}}", result=stdout + stderr)
         finally:
             self.scrub_pypi_residue()
+
+
+        while True:
+            Log.alert("WAIT FOR PYPI")
+            Till(seconds=10).wait()
+            """
+            (.venv) C:\\Users\\kyle\\code\\mo-sql-parsing>pip install mo-collections==
+            ERROR: Could not find a version that satisfies the requirement mo-collections== (from versions: 1.0.17035, 1.0.17036, 1.0.17039, 1.1.17039, 1.1.17040, 1.1.17041, 1.1.17049, 1.1.17056, 1.1.17085, 1.1.17131, 1.1.17227, 1.1.17229, 1.2.17235, 1.2.18029, 2.13.18154, 2.15.18155, 2.16.18199, 2.17.18212, 2.18.18240, 2.26.18331, 2.31.19025, 3.5.19316, 3.38.20029, 3.46.20032, 3.58.20089, 3.60.20091, 3.77.20190, 3.96.20290, 4.3.20340, 4.30.21121, 5.37.21239, 5.45.21241)
+            ERROR: No matching distribution found for mo-collections==
+            WARNING: You are using pip version 20.1.1; however, version 21.2.4 is available.
+            You should consider upgrading via the 'c:\\python37\\python.exe -m pip install --upgrade pip' command.
+            """
+            p, stdout, stderr = self.local([self.python, "-m", "pip", "install", self.name+"=="], raise_on_error=False)
+            p.join()
+            for e in stderr:
+                if self.version in e:
+                    break
+
 
     def update_setup_json_file(self, new_version):
         setup_json = self.directory / SETUPTOOLS
@@ -484,6 +501,21 @@ class Module(object):
         version = self.last_deploy()
         revision = self.master_revision()
         return version, revision
+
+    @cache()
+    def get_old_dependencies(self, version):
+        # RETURN LIST OF {"name", "version"} dicts
+        p, stdout, stderr = self.local([self.git, "show", f"{version}:{SETUPTOOLS}"])
+        requirements = json2value("\n".join(stdout)).install_requires
+
+        def deps():
+            for r in requirements:
+                parts = r.split("==")
+                if len(parts == 1):
+                    yield {"name": parts[0], "version": None}
+                else:
+                    yield {"name": parts[0], "version": Version(parts[1])}
+        return list(deps)
 
     def master_revision(self):
         p, stdout, stderr = self.local([self.git, "log", self.master_branch, "-1"])
