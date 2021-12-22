@@ -10,13 +10,12 @@ from __future__ import division, unicode_literals
 
 from collections import Mapping
 
-from mo_http import http
-
 from mo_deploy.utils import Requirement, parse_req
-from mo_dots import coalesce, wrap, listwrap, literal_field
+from mo_dots import coalesce, wrap, listwrap
 from mo_dots.lists import last
 from mo_files import File, TempDirectory, URL
 from mo_future import is_binary, is_text, sort_using_key, text
+from mo_http import http
 from mo_json import value2json, json2value
 from mo_logs import Except, Log, strings
 from mo_math import randoms
@@ -68,7 +67,7 @@ class Module(object):
             self.gen_setup_py_file()
             self.local(
                 [
-                    self.python['latest'],
+                    self.python["latest"],
                     "-c",
                     "from "
                     + self.name.replace("-", "_")
@@ -81,7 +80,10 @@ class Module(object):
             # RUN TESTS IN PARALLEL
             while True:
                 try:
-                    test_threads = [Thread.run("test "+v, self.run_tests, v) for v in self.test_versions]
+                    test_threads = [
+                        Thread.run("test " + v, self.run_tests, v)
+                        for v in self.test_versions
+                    ]
                     Thread.join_all(test_threads)
                     break
                 except Exception as cause:
@@ -155,7 +157,7 @@ class Module(object):
                 f.delete()
 
     def pypi(self):
-        
+
         Log.note("Update PyPi for {{dir}}", dir=self.directory.abspath)
         try:
             self.scrub_pypi_residue()
@@ -171,7 +173,9 @@ class Module(object):
             # build-backend = "setuptools.build_meta"
 
             Log.note("run setup.py")
-            self.local([self.python['latest'], "setup.py", "sdist"], raise_on_error=True)
+            self.local(
+                [self.python["latest"], "setup.py", "sdist"], raise_on_error=True
+            )
 
             Log.note("twine upload of {{dir}}", dir=self.directory.abspath)
             # python3 -m twine upload --repository-url https://test.pypi.org/legacy/ dist/*
@@ -197,9 +201,9 @@ class Module(object):
         finally:
             self.scrub_pypi_residue()
 
-
-        while True:
-            Log.alert("WAIT FOR PYPI")
+        give_up_on_pypi = Till(seconds=90)
+        while not give_up_on_pypi:
+            Log.note("WAIT FOR PYPI TO SHOW NEW VERSION {{version}}", version=self.graph.next_version)
             Till(seconds=10).wait()
             """
             (.venv) C:\\Users\\kyle\\code\\mo-sql-parsing>pip install mo-collections==
@@ -208,12 +212,13 @@ class Module(object):
             WARNING: You are using pip version 20.1.1; however, version 21.2.4 is available.
             You should consider upgrading via the 'c:\\python37\\python.exe -m pip install --upgrade pip' command.
             """
-            p, stdout, stderr = self.local([self.python, "-m", "pip", "install", self.name+"=="], raise_on_error=False)
-            p.join()
-            for e in stderr:
-                if self.version in e:
-                    break
-
+            p, stdout, stderr = self.local(
+                [self.python["latest"], "-m", "pip", "install", self.name + "=="],
+                raise_on_error=False,
+            )
+            if any(str(self.graph.next_version) in e for e in stderr):
+                Log.note("Found on pypi")
+                break
 
     def update_setup_json_file(self, new_version):
         setup_json = self.directory / SETUPTOOLS
@@ -241,10 +246,14 @@ class Module(object):
                 version = c.split("::")[-1].strip()
                 self.test_versions.append(version)
                 if not self.python[version]:
-                    Log.error("Expecting {{version}} in \"general.python\" settings", version=version)
+                    Log.error(
+                        'Expecting {{version}} in "general.python" settings',
+                        version=version,
+                    )
         if not self.test_versions:
             Log.error(
-                "expecting language classifier, like 'Programming Language :: Python :: 3.7'"
+                "expecting language classifier, like 'Programming Language :: Python ::"
+                " 3.7'"
             )
 
         # LONG DESCRIPTION
@@ -366,8 +375,16 @@ class Module(object):
             pip = temp / ".venv" / "Scripts" / "pip.exe"
 
             Log.note("install virtualenv")
-            self.local([self.python[python_version], "-m", "pip", "install", "virtualenv"])
-            self.local([self.python[python_version], "-m", "virtualenv", ".venv"], cwd=temp)
+            self.local([
+                self.python[python_version],
+                "-m",
+                "pip",
+                "install",
+                "virtualenv",
+            ])
+            self.local(
+                [self.python[python_version], "-m", "virtualenv", ".venv"], cwd=temp
+            )
 
             # CLEAN INSTALL FIRST, TO TEST FOR VERSION COMPATIBILITY
             try:
@@ -387,7 +404,7 @@ class Module(object):
                 self.local(
                     [python, "-Werror", "tests/smoke_test.py"],
                     env={"PYTHONPATH": ""},
-                    debug=True
+                    debug=True,
                 )
             else:
                 Log.warning(
@@ -502,20 +519,31 @@ class Module(object):
         revision = self.master_revision()
         return version, revision
 
-    @cache()
+    @cache(lock=True)
     def get_old_dependencies(self, version):
         # RETURN LIST OF {"name", "version"} dicts
-        p, stdout, stderr = self.local([self.git, "show", f"{version}:{SETUPTOOLS}"])
-        requirements = json2value("\n".join(stdout)).install_requires
+        Log.note(
+            "Find {{name}}=={{version}} in git history", name=self.name, version=version
+        )
+        p, stdout, stderr = self.local(
+            [self.git, "show", f"{version}:{SETUPTOOLS}"], raise_on_error=False
+        )
+        if any("invalid object name" in line for line in stderr):
+            requirements = (
+                File(self.directory / SETUPTOOLS).read_json().install_requires
+            )
+        else:
+            requirements = json2value("\n".join(stdout)).install_requires
 
         def deps():
             for r in requirements:
                 parts = r.split("==")
-                if len(parts == 1):
+                if len(parts) == 1:
                     yield {"name": parts[0], "version": None}
                 else:
                     yield {"name": parts[0], "version": Version(parts[1])}
-        return list(deps)
+
+        return list(deps())
 
     def master_revision(self):
         p, stdout, stderr = self.local([self.git, "log", self.master_branch, "-1"])

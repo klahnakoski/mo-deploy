@@ -85,6 +85,9 @@ class Version(object):
     def __str__(self):
         return self.prefix+text(".").join(map(text, self.version))
 
+    def __hash__(self):
+        return self.__str__().__hash__()
+
     def __add__(self, other):
         major, minor, mini = self.version
         minor += other
