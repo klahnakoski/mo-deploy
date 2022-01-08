@@ -49,8 +49,8 @@ class Module(object):
             self.dev_branch = "dev"
             self.directory = File(info)
             self.name = self.directory.name.replace("_", "-")
-        self.version = None
         self.graph = graph
+        self.all_versions = []
 
     def deploy(self):
         self.setup()
@@ -58,12 +58,13 @@ class Module(object):
         self.update_dev("updates from other projects")
 
         curr_version, revision = self.get_version()
-        if curr_version == self.graph.next_version:
+        next_version = self.graph.get_next_version(self.name)
+        if curr_version == next_version:
             Log.error("{{module}} does not need deploy", module=self.name)
 
         master_rev = self.master_revision()
         try:
-            self.update_setup_json_file(self.graph.next_version)
+            self.update_setup_json_file(next_version)
             self.gen_setup_py_file()
             self.local(
                 [
@@ -92,14 +93,14 @@ class Module(object):
                     if value not in "yY":
                         Log.error("Can not install self", cause=cause)
 
-            self.update_master_locally(self.graph.next_version)
+            self.update_master_locally(next_version)
             self.pypi()
             self.local([self.git, "push", "origin", self.master_branch])
         except Exception as cause:
             cause = Except.wrap(cause)
             self.local([self.git, "checkout", "-f", master_rev])
             self.local(
-                [self.git, "tag", "--delete", text(self.graph.next_version)],
+                [self.git, "tag", "--delete", text(next_version)],
                 raise_on_error=False,
             )
             self.local(
@@ -203,7 +204,7 @@ class Module(object):
 
         give_up_on_pypi = Till(seconds=90)
         while not give_up_on_pypi:
-            Log.note("WAIT FOR PYPI TO SHOW NEW VERSION {{version}}", version=self.graph.next_version)
+            Log.note("WAIT FOR PYPI TO SHOW NEW VERSION {{version}}", version=self.graph.get_next_version(self.name))
             Till(seconds=10).wait()
             """
             (.venv) C:\\Users\\kyle\\code\\mo-sql-parsing>pip install mo-collections==
@@ -216,7 +217,7 @@ class Module(object):
                 [self.python["latest"], "-m", "pip", "install", self.name + "=="],
                 raise_on_error=False,
             )
-            if any(str(self.graph.next_version) in e for e in stderr):
+            if any(str(self.graph.get_next_version(self.name)) in e for e in stderr):
                 Log.note("Found on pypi")
                 break
 
@@ -487,7 +488,7 @@ class Module(object):
             else Requirement(
                 name=r.name,
                 type="==",
-                version=self.graph.get_version(r.name),  # ALREADY THE MAX
+                version=self.graph.get_version(r.name),
             )
             for line in req.read_lines()
             if line
@@ -503,9 +504,9 @@ class Module(object):
         # RETURN version, revision PAIR
         p, stdout, stderr = self.local([self.git, "tag"])
         # ONLY PICK VERSIONS WITH vX.Y.Z PATTERN
-        all_versions = [
-            v for line in stdout for v in [Version(line)] if v.prefix == "v"
-        ]
+        all_versions = self.all_versions = list(sorted(
+            v for line in stdout for v in [Version(line)]
+        ))
 
         if all_versions:
             version = max(all_versions)
@@ -518,6 +519,10 @@ class Module(object):
         version = self.last_deploy()
         revision = self.master_revision()
         return version, revision
+
+    @property
+    def version(self):
+        return self.get_version()[0]
 
     @cache(lock=True)
     def get_old_dependencies(self, version):

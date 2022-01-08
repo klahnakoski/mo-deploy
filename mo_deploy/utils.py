@@ -14,6 +14,9 @@ import re
 from mo_future import text
 
 from mo_logs import Log
+from mo_times import Date
+
+TODAY = int(Date.now().format("%y%j"))
 
 
 class Requirement(object):
@@ -47,18 +50,16 @@ class Requirement(object):
             elif _op_to_func[other.type](self.version, other.version):
                 return other
             else:
-                Log.error("versions do not interesct {v1} and {v2}", v1=self, v2=other)
+                # IF YOU ARE HERE, THEN THERE IS MORE THAN ONE PATH TO THIS LIBRARY
+                # AND THE AUTOMATION HAS DECIDED ON TWO DIFFERENT VERSIONS.  LOCK THE
+                # VERSIONS FOR ALL DEPENDENCIES, OR UNLOCK THEM ALL.
+                # FANCY DEPENDENCY RESOLUTION IS NOT SUPPORTED
+                Log.error("versions do not intersect {v1} and {v2}", v1=self.version, v2=other.version)
 
     def __data__(self):
         return text(self)
 
     def __str__(self):
-        if self.type:
-            return self.name + self.type + str(self.version)
-        else:
-            return self.name
-
-    def __unicode__(self):
         if self.type:
             return self.name + self.type + text(self.version)
         else:

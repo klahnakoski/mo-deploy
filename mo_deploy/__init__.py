@@ -45,7 +45,7 @@ def main():
             return
         input("Press <Enter> to continue ...")
         for m in graph.todo:
-            Log.alert("DEPLOY {{module|upper}}", module=m.name)
+            Log.alert("DEPLOY {{module|upper}} - {{version}}", module=m.name, version=graph.get_next_version(m.name))
             m.deploy()
 
     except Exception as e:

@@ -11,13 +11,14 @@ from __future__ import division, unicode_literals
 from copy import copy
 from typing import Dict
 
-from mo_logs.exceptions import Except
 from toposort import toposort
 
 from mo_deploy.module import Module, SETUPTOOLS
-from mo_deploy.utils import Requirement
+from mo_deploy.utils import Requirement, TODAY
 from mo_dots import listwrap
+from mo_files import File
 from mo_logs import Log
+from mo_logs.exceptions import Except
 from mo_math import UNION
 from mo_threads import Lock
 from mo_threads.threads import AllThread
@@ -42,13 +43,16 @@ class ModuleGraph(object):
             graph[module_name] = set()
             last_version = m.get_version()[0]
             versions[module_name] = max(
-                Version((m.directory/SETUPTOOLS).read_json(leaves=False).version, prefix='v'),
-                last_version
+                Version(
+                    (m.directory / SETUPTOOLS).read_json(leaves=False).version,
+                    prefix="v",
+                ),
+                last_version,
             )
 
-            for req in m.get_requirements(
-                [Requirement(k, "==", v) for k, v in versions.items()]
-            ):
+            for req in m.get_requirements([
+                Requirement(k, "==", v) for k, v in versions.items()
+            ]):
                 with graph_lock:
                     graph[module_name].add(req.name)
 
@@ -97,62 +101,81 @@ class ModuleGraph(object):
             if m.can_upgrade() or m.last_deploy() < m.get_version()[0]
         ]
         self.todo = self._sorted(self.todo_names)
-        self.todo_names = [{"name":t.name, "version": t.version} for t in self.todo]
+        self.todo_names = [{"name": t.name, "version": t.version} for t in self.todo]
 
         # ASSIGN next_version IN CASE IT IS REQUIRED
         # IF b DEPENDS ON a THEN version(b)>=version(a)
         # next_version(a) > version(a)
-        max_version = max(v for v in versions.values() if v != None)
-        self.next_version = max_version + 1
+        max_minor_version = max(int(v.minor) for v in versions.values() if v != None)
+        self.next_minor_version = max_minor_version + 1
 
         version_bump = self.todo.copy()
-        max_versions = {t.name: self.next_version for t in version_bump}
+        self._next_version = {}
+        for m in version_bump:
+            # THE SETUPTOOLS FILE MAY SUGGEST A HIGHER MAJOR VERSION
+            proposed_version = Version(File(m.directory / SETUPTOOLS).read_json().version)
+            self._next_version[m.name] = Version((
+                max(m.version.major, proposed_version.major),
+                self.next_minor_version,
+                TODAY,
+            ))
 
         def scan(module: Module, version: Version):
             # GET DEPENDENCIES
             reqs = module.get_old_dependencies(version)
             # FOR EACH REQUIREMENT
             for req in reqs:
-                req_name = req['name']
-                req_version = req['version']
+                req_name = req["name"]
+                req_minor_version = req["version"].minor
                 # Log.note("{{module}}=={{version}} requires {{req_name}}=={{req_version}}", module=module.name, version=version, req_name=req_name, req_version=req_version)
                 req_module = self.modules.get(req_name)
                 if not req_module:
                     continue
-                max_version = max_versions.get(req_name)
-                if max_version is None:
-                    max_versions[req_name] = req_version
-                elif max_version > req_version:
+                next_version = self._next_version.get(req_name)
+                if next_version is None:
+                    curr_version = self.versions[req_name]
+                    self._next_version[req_name] = Version((
+                        curr_version.major,
+                        req_minor_version,
+                        TODAY,
+                    ))
+                elif next_version.minor > req_minor_version:
                     if module not in version_bump:
                         version_bump.append(module)
                         Log.note("found underlap")
                         raise Exception("not done")
-                    req_version = max_version
-                elif max_version < req_version:
+                    req_minor_version = next_version.minor
+                elif next_version.minor < req_minor_version:
                     Log.note("found overlap")
-                    max_versions[req_name] = req_version
+                    self._next_version[req_name].minor = req_minor_version
                     raise Exception("not done")
 
-                scan(req_module, req_version)
+                scan(req_module, req_minor_version)
 
         while True:
             try:
                 for t in version_bump.copy():
-                    scan(t, max_versions[t.name])
+                    scan(t, self._next_version[t.name])
             except Exception as cause:
-                cause=Except.wrap(cause)
+                cause = Except.wrap(cause)
                 if "not done" in cause:
                     continue
                 Log.error("problem while scanning past versions", cause=cause)
             else:
                 break
 
-        Log.note("Using old versions {{versions}}", versions={k: str(v) for k, v in max_versions.items() if k not in set(m.name for m in version_bump)})
+        Log.note(
+            "Using old versions {{versions}}",
+            versions={
+                k: str(v)
+                for k, v in self._next_version.items()
+                if k not in set(m.name for m in version_bump)
+            },
+        )
         additional = [m.name for m in version_bump if m not in self.todo]
         if additional:
             Log.note(
-                "No change, but requires version bump {{modules}}",
-                modules=additional,
+                "No change, but requires version bump {{modules}}", modules=additional,
             )
 
         # UPGRADE TODO
@@ -162,9 +185,12 @@ class ModuleGraph(object):
         if self.todo:
             Log.alert("Updating: {{modules}}", modules=self.todo_names)
 
+    def get_next_version(self, module_name):
+        return self._next_version[module_name]
+
     def get_version(self, module_name):
         if module_name in self.todo_names:
-            return self.next_version
+            return self._next_version[module_name]
         else:
             return self.versions[module_name]
 
