@@ -94,6 +94,8 @@ class Version(object):
         mini = datetime.datetime.utcnow().strftime("%y%j")
         return Version((major, minor, mini), prefix=self.prefix)
 
+    __data__ = __str__
+
     @property
     def major(self):
         return self.version[0]

@@ -8,12 +8,11 @@
 #
 from __future__ import division, unicode_literals
 
-from pyLibrary.utils import Version
-
 from mo_deploy.module import Module
 from mo_deploy.module_graph import ModuleGraph
-from mo_dots import listwrap, Data, from_data
+from mo_dots import listwrap, from_data
 from mo_logs import Log, constants, startup
+from pyLibrary.utils import Version
 
 
 def main():

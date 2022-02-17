@@ -12,7 +12,7 @@ Lightweight CI tool for the `mo-*` projects
 
 All packages are version-controlled using two systems; Git and SVN. The Git is used to track the official branches for the packages, while SVN tracks the `dev` branch across multiple projects that vendored the package source code.
 
-Most packages are developed in the projects they are used: Packages are included in a project to keep the project simple, and the package is enhanced as the project grows. This happens across multiple projects and packages.
+Most packages are developed in the projects they are used: Packages are vendored in a project to keep the project simple, while supporting package enhancement. This happens across multiple projects and packages.
 
 ### Example
 

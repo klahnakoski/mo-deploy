@@ -14,29 +14,29 @@
     },
     "managed": [
 
-        "c:/users/kyle/code/mo-imports",
-        "c:/users/kyle/code/mo-future",
+//        "c:/users/kyle/code/mo-imports",
+//        "c:/users/kyle/code/mo-future",
         "c:/users/kyle/code/mo-dots",
-        "c:/users/kyle/code/mo-kwargs",
-        "c:/users/kyle/code/mo-logs",
-        "c:/users/kyle/code/mo-sql",
-        "c:/users/kyle/code/mo-files",
-        "c:/users/kyle/code/mo-http",
+//        "c:/users/kyle/code/mo-kwargs",
+//        "c:/users/kyle/code/mo-logs",
+//        "c:/users/kyle/code/mo-sql",
+//        "c:/users/kyle/code/mo-files",
+//        "c:/users/kyle/code/mo-http",
 
-        "c:/users/kyle/code/mo-threads",
-        "c:/users/kyle/code/mo-math",
-        "c:/users/kyle/code/mo-times",
-        "c:/users/kyle/code/mo-json",
-        "c:/users/kyle/code/mo-collections",
-        "c:/users/kyle/code/mo-testing",
-        "c:/users/kyle/code/mo-json-config",
-        "c:/users/kyle/code/pyLibrary",
+//        "c:/users/kyle/code/mo-threads",
+//        "c:/users/kyle/code/mo-math",
+//        "c:/users/kyle/code/mo-times",
+//        "c:/users/kyle/code/mo-json",
+//        "c:/users/kyle/code/mo-collections",
+//        "c:/users/kyle/code/mo-testing",
+//        "c:/users/kyle/code/mo-json-config",
+//        "c:/users/kyle/code/pyLibrary",
 
-        "c:/users/kyle/code/jx-python",
-        "c:/users/kyle/code/jx-elasticsearch",
-        "c:/users/kyle/code/jx-bigquery",
-        "c:/users/kyle/code/jx-mysql",
-        "c:/users/kyle/code/jx-sqlite",
+//        "c:/users/kyle/code/jx-python",
+//        "c:/users/kyle/code/jx-elasticsearch",
+//        "c:/users/kyle/code/jx-bigquery",
+//        "c:/users/kyle/code/jx-mysql",
+//        "c:/users/kyle/code/jx-sqlite",
 
         "c:/users/kyle/code/mo-parsing",
         "c:/users/kyle/code/mo-sql-parsing"
@@ -49,7 +49,8 @@
 //        "c:/users/kyle/code/mo-parquet"
     ],
     "deploy": [
-        "mo-sql-parsing"
+//        "mo-parsing", "mo-json-config", "mo-threads",
+        "mo-sql-parsing",
     ],
     "constants": {
         "mo_http.http.default_headers": {

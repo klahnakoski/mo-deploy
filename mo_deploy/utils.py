@@ -12,7 +12,6 @@ import operator
 import re
 
 from mo_future import text
-
 from mo_logs import Log
 from mo_times import Date
 
@@ -35,6 +34,8 @@ class Requirement(object):
 
         if self.type is None:
             return other
+        elif self.type == other.type and self.version == other.version:
+            return self
         elif _op_to_func[self.type](other.version, self.version):
             if other.type is None:
                 return self

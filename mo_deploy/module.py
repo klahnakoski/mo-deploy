@@ -11,7 +11,7 @@ from __future__ import division, unicode_literals
 from collections import Mapping
 
 from mo_deploy.utils import Requirement, parse_req
-from mo_dots import coalesce, wrap, listwrap
+from mo_dots import coalesce, wrap, listwrap, to_data
 from mo_dots.lists import last
 from mo_files import File, TempDirectory, URL
 from mo_future import is_binary, is_text, sort_using_key, text
@@ -297,7 +297,7 @@ class Module(object):
         setup.version = text(new_version)
 
         # REQUIRES
-        reqs = self.get_requirements([
+        reqs = self.get_next_requirements([
             parse_req(line) for line in setup.install_requires
         ])
         setup.install_requires = [
@@ -477,14 +477,30 @@ class Module(object):
                 cause=e,
             )
 
-    def get_requirements(self, current_requires):
+    def get_current_requirements(self, current_requires):
         # MAP FROM NAME TO CURRENT LIMITS
         lookup_old_requires = {r.name: r for r in current_requires}
 
         req = self.directory / "requirements.txt"
-        output = wrap([  # TODO: improve this, keep version numbers from json file so that they only increase
+        output = to_data([
             r & lookup_old_requires.get(r.name)
-            if r.name not in self.graph.graph or not hasattr(self.graph, "next_version")
+            for line in req.read_lines()
+            if line
+            for r in [parse_req(line)]
+        ])
+
+        if any(r.name.startswith(("mo_", "jx_")) for r in output):
+            Log.error("found problem in {{module}}", module=self.name)
+        return output
+
+    def get_next_requirements(self, current_requires):
+        # MAP FROM NAME TO CURRENT LIMITS
+        lookup_old_requires = {r.name: r for r in current_requires}
+
+        req = self.directory / "requirements.txt"
+        output = to_data([
+            r & lookup_old_requires.get(r.name)
+            if r.name not in self.graph.graph
             else Requirement(
                 name=r.name,
                 type="==",
@@ -494,9 +510,6 @@ class Module(object):
             if line
             for r in [parse_req(line)]
         ])
-
-        if any(r.name.startswith(("mo_", "jx_")) for r in output):
-            Log.error("found problem in {{module}}", module=self.name)
         return output
 
     @cache()
@@ -542,11 +555,21 @@ class Module(object):
 
         def deps():
             for r in requirements:
-                parts = r.split("==")
-                if len(parts) == 1:
-                    yield {"name": parts[0], "version": None}
+                if ">=" in r:
+                    n, v = r.split(">=")
+                    yield {"name": n, "version": Version(v)}
+                elif "==" in r:
+                    n, v = r.split("==")
+                    yield {"name": n, "version": Version(v)}
+                elif ">" in r:
+                    n, v = r.split(">")
+                    v= Version(v)
+                    v = min(vv for vv in self.graph.modules[n].all_versions if vv > v)
+                    yield {"name": n, "version": v}
+                elif "<" in r:
+                    Log.error("do not know how to handle")
                 else:
-                    yield {"name": parts[0], "version": Version(parts[1])}
+                    yield {"name": r, "version": None}
 
         return list(deps())
 
