@@ -11,7 +11,7 @@ from __future__ import division, unicode_literals
 from collections import Mapping
 
 from mo_deploy.utils import Requirement, parse_req
-from mo_dots import coalesce, wrap, listwrap, to_data
+from mo_dots import coalesce, listwrap, to_data
 from mo_dots.lists import last
 from mo_files import File, TempDirectory, URL
 from mo_future import is_binary, is_text, sort_using_key, text
@@ -375,7 +375,7 @@ class Module(object):
             python = temp / ".venv" / "Scripts" / "python.exe"
             pip = temp / ".venv" / "Scripts" / "pip.exe"
 
-            Log.note("install virtualenv")
+            Log.note("install virtualenv into {{dir}}", dir=temp.abspath)
             self.local([
                 self.python[python_version],
                 "-m",
@@ -384,14 +384,13 @@ class Module(object):
                 "virtualenv",
             ])
             self.local(
-                [self.python[python_version], "-m", "virtualenv", ".venv"], cwd=temp
+                [self.python[python_version], "-m", "virtualenv", temp / ".venv"], cwd=temp
             )
 
             # CLEAN INSTALL FIRST, TO TEST FOR VERSION COMPATIBILITY
             try:
-                # DONE AFTER tests/requirements.txt TO ENSURE PINNED VERSIONS ARE USED
                 Log.note("install self")
-                p, stdout, stderr = self.local([pip, "install", "."])
+                p, stdout, stderr = self.local([pip, "install", "."], debug=True)
                 if any("which is incompatible" in line for line in stderr):
                     Log.error("Seems we have an incompatibility problem")
                 if any("conflicting dependencies" in line for line in stderr):
@@ -409,18 +408,20 @@ class Module(object):
                 )
             else:
                 Log.warning(
-                    "add test/smoke_test.py to ensure the library will run after"
+                    "add tests/smoke_test.py to ensure the library will run after"
                     " installed"
                 )
 
             # INSTALL TEST RESOURCES
             Log.note("install testing requirements")
             if (self.directory / "tests" / "requirements.txt").exists:
+                self.local([pip, "install", "--no-deps", "-r", "tests/requirements.txt"])
                 self.local([pip, "install", "-r", "tests/requirements.txt"])
 
             # INSTALL SELF AGAIN TO ENSURE CORRECT VERSIONS ARE USED (EVEN IF CONFLICT WITH TEST RESOURCES)
             Log.note("install self")
             self.local([pip, "install", "."])
+
 
             with Timer("run tests"):
                 process, stdout, stderr = self.local(
@@ -589,7 +590,7 @@ class Module(object):
 
     @cache()
     def can_upgrade(self):
-        ignored_files = ["setup.py"]
+        ignored_files = ["setup.py", "setuptools.json"]
 
         # get current version, hash
         version, revision = self.get_version()

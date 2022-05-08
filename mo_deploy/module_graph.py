@@ -95,7 +95,14 @@ class ModuleGraph(object):
                 for d in deploy_dependencies:
                     a.run(d.name, pre_fetch_state, d)
 
-        # WHAT MODULES NEED UPDATE?
+        # DO ANY ON THE deploy REQUIRE UPGRADE?
+        not_needed = set(
+            m.name
+            for m in deploy_dependencies
+            if m.name in deploy and not (m.can_upgrade() or m.last_deploy() < m.get_version()[0])
+        )
+
+        # WHAT MODULES NEED UPDATE? (INCLUDE deploy TO ALLOW UPGRADE LOGIC TO FIND TRANSITIVE UPGRADES)
         self.todo = self._sorted(set(
             m.name
             for m in deploy_dependencies
@@ -210,7 +217,7 @@ class ModuleGraph(object):
                 "No change, but requires version bump {{modules}}", modules=additional,
             )
 
-        self.todo = self._sorted(self._next_version.keys())
+        self.todo = self._sorted(self._next_version.keys() - not_needed)
 
         if self._next_version:
             Log.alert("Updating: {{modules}}", modules=[(m.name, self._next_version[m.name]) for m in self.todo])

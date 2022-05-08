@@ -397,7 +397,6 @@ class Command(object):
         """
         :param source:
         :param destination:
-        :param error: Throw error if line shows up
         :param please_stop:
         :return:
         """
