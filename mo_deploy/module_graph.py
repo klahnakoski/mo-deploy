@@ -57,9 +57,12 @@ class ModuleGraph(object):
                 with graph_lock:
                     graph[module_name].add(req.name)
 
-        with AllThread() as a:
-            for m in self.modules.values():
-                a.run(m.name, info, m)
+        # with AllThread() as a:
+        #     for m in self.modules.values():
+        #         a.run(m.name, info, m)
+
+        for m in self.modules.values():
+            info(m, None)
 
         self.toposort = list(toposort(graph))
 
@@ -91,9 +94,13 @@ class ModuleGraph(object):
             d.last_deploy()
 
         with Timer("get modules' status"):
-            with AllThread() as a:
-                for d in deploy_dependencies:
-                    a.run(d.name, pre_fetch_state, d)
+            # with AllThread() as a:
+            #     for d in deploy_dependencies:
+            #         a.run(d.name, pre_fetch_state, d)
+
+            for d in deploy_dependencies:
+                pre_fetch_state(d, None)
+
 
         # DO ANY ON THE deploy REQUIRE UPGRADE?
         not_needed = set(

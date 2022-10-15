@@ -52,8 +52,10 @@ class Requirement(object):
                 return other
             else:
                 # IF YOU ARE HERE, THEN THERE IS MORE THAN ONE PATH TO THIS LIBRARY
-                # AND THE AUTOMATION HAS DECIDED ON TWO DIFFERENT VERSIONS.  LOCK THE
-                # VERSIONS FOR ALL DEPENDENCIES, OR UNLOCK THEM ALL.
+                # AND THE AUTOMATION HAS DECIDED ON TWO DIFFERENT VERSIONS.
+                #   * LOCK THEvVERSIONS FOR ALL DEPENDENCIES, OR
+                #   * UNLOCK THEM ALL OR
+                #   * REMOVE install_requires FROM setuptools.json
                 # FANCY DEPENDENCY RESOLUTION IS NOT SUPPORTED
                 Log.error("versions do not intersect {v1} and {v2}", v1=self.version, v2=other.version)
 
@@ -68,9 +70,9 @@ class Requirement(object):
 
 
 def parse_req(line):
-    result = re.match(r"^\s*([\w-]+)\s*(>|>=|==|<=|<)\s*([\d.]+)", line)
+    result = re.match(r"^\s*([\w-]+)\s*(?:(>|>=|==|<=|<)\s*([\d.]+))?", line)
     if not result:
-        return Requirement(line, None, None)
+        return
 
     return Requirement(result.group(1), result.group(2), result.group(3))
 

@@ -13,7 +13,7 @@ from collections import Mapping
 from mo_deploy.utils import Requirement, parse_req
 from mo_dots import coalesce, listwrap, to_data
 from mo_dots.lists import last
-from mo_files import File, TempDirectory, URL
+from mo_files import File, TempDirectory, URL, os_path
 from mo_future import is_binary, is_text, sort_using_key, text
 from mo_http import http
 from mo_json import value2json, json2value
@@ -158,6 +158,12 @@ class Module(object):
                 f.delete()
 
     def pypi(self):
+        # ENSURE THE API TOKEN IS SET.  twine USES keyring:
+        #     C:\Users\kyle>keyring get https://upload.pypi.org/legacy/ __token__
+        #
+        #    C:\Users\kyle>keyring set https://upload.pypi.org/legacy/ __token__
+        #    Password for '__token__' in 'https://upload.pypi.org/legacy/':
+        #
 
         Log.note("Update PyPi for {{dir}}", dir=self.directory.abspath)
         try:
@@ -181,7 +187,7 @@ class Module(object):
             Log.note("twine upload of {{dir}}", dir=self.directory.abspath)
             # python3 -m twine upload --repository-url https://test.pypi.org/legacy/ dist/*
             process, stdout, stderr = self.local(
-                [self.twine, "upload", "dist/*"], raise_on_error=False, show_all=True
+                [self.twine, "upload", "--verbose", "dist/*"], raise_on_error=False, show_all=True
             )
             if "Upload failed (400): File already exists." in stderr:
                 Log.error("Version exists. Not uploaded")
@@ -243,7 +249,7 @@ class Module(object):
         # FIND VERSIONS FOR TESTING
         self.test_versions = []
         for c in listwrap(setup.classifiers):
-            if c.startswith("Programming Language :: Python"):
+            if c.startswith("Programming Language :: Python ::"):
                 version = c.split("::")[-1].strip()
                 self.test_versions.append(version)
                 if not self.python[version]:
@@ -263,7 +269,7 @@ class Module(object):
 
         # PACKAGES
         expected_packages = [
-            dir_name
+            dir_name.replace("/", ".")
             for f in self.directory.leaves
             if f.name == "__init__" and f.extension == "py"
             for dir_name in [f.parent.abspath[len(self.directory.abspath) + 1 :]]
@@ -280,8 +286,8 @@ class Module(object):
         elif set(declared_packages) != set(expected_packages):
             Log.warning(
                 "Packages are {{existing}}. Maybe they should be {{proposed}}",
-                existing=declared_packages,
-                proposed=expected_packages,
+                existing=list(sorted(declared_packages)),
+                proposed=list(sorted(expected_packages)),
             )
 
         # EXTRA DEPENDENCIES
@@ -291,6 +297,7 @@ class Module(object):
                 for line in test_req_file.read_lines()
                 if line
                 for r in [parse_req(line)]
+                if r
             ]
 
         # VERSION
@@ -298,7 +305,10 @@ class Module(object):
 
         # REQUIRES
         reqs = self.get_next_requirements([
-            parse_req(line) for line in setup.install_requires
+            r
+            for line in setup.install_requires
+            for r in [parse_req(line)]
+            if r
         ])
         setup.install_requires = [
             r.name + r.type + text(r.version) if r.version else r.name
@@ -312,7 +322,7 @@ class Module(object):
         self.local([self.git, "checkout", self.dev_branch])
 
         for d in self.directory.find(r"\.svn"):
-            svn_dir = d.parent.abspath
+            svn_dir = os_path(d.parent.abspath)
             if any(d in svn_dir for d in listwrap(Module.ignore_svn)):
                 Log.note("Ignoring svn directory {{dir}}", dir=svn_dir)
                 continue
@@ -474,7 +484,7 @@ class Module(object):
             Log.error(
                 "can not execute {{args}} in dir={{dir|quote}}",
                 args=args,
-                dir=self.directory.abspath,
+                dir=os_path(self.directory.abspath),
                 cause=e,
             )
 
@@ -488,6 +498,7 @@ class Module(object):
             for line in req.read_lines()
             if line
             for r in [parse_req(line)]
+            if r
         ])
 
         if any(r.name.startswith(("mo_", "jx_")) for r in output):
@@ -510,6 +521,7 @@ class Module(object):
             for line in req.read_lines()
             if line
             for r in [parse_req(line)]
+            if r
         ])
         return output
 

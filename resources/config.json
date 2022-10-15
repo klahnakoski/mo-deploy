@@ -3,12 +3,12 @@
         "git": "C:\\Program Files\\Git\\cmd\\git.exe",
         "svn": "C:\\Program Files\\VisualSVN Server\\bin\\svn.exe",
         "python": {
-            "3\\.9":"C:\\Python39\\python.exe",
-            "3\\.8":"C:\\Python38\\python.exe",
-            "3\\.7":"C:\\Python37\\python.exe",
-            "3\\.6":"C:\\Users\\kyle\\AppData\\Local\\Programs\\Python\\Python36\\python.exe"
+            "3..9":"C:\\Python39\\python.exe",
+            "3..8":"C:\\Python38\\python.exe",
+            "3..7":"C:\\Python37\\python.exe",
+            "3..6":"C:\\Users\\kyle\\AppData\\Local\\Programs\\Python\\Python36\\python.exe"
         },
-        "twine": "C:\\Python37\\Scripts\\twine.exe",
+        "twine": "C:\\Python39\\Scripts\\twine.exe",
         "python_requires": null,
         "ignore_svn": "vendor/"
     },
@@ -41,7 +41,7 @@
         "c:/users/kyle/code/mo-parsing",
         "c:/users/kyle/code/mo-sql-parsing"
 
-//        "c:/users/kyle/code/mo-black"
+        "c:/users/kyle/code/mo-black"
 //        "c:/users/kyle/code/mo-fabric",
 //        "c:/users/kyle/code/mo-hg",
 //        "c:/users/kyle/code/measure-noise",
@@ -50,15 +50,17 @@
     ],
     "deploy": [
 //          "mo-testing",  "mo-threads", "jx-python", "mo-logs"
-        "mo-parsing", "mo-json-config", "mo-threads",
-//        "mo-sql-parsing",
-//        "mo-json-config"
+//        "mo-parsing", "mo-json-config", "mo-threads",
+        "mo-sql-parsing",
+//        "mo-json-config",
+//        "mo-black"
     ],
     "constants": {
         "mo_http.http.default_headers": {
             "Referer": "https://github.com/klahnakoski/mo-deploy"
         },
-        "mo_threads.multiprocess.DEBUG_COMMAND": false
+        "mo_threads.multiprocess.DEBUG_COMMAND": true,
+        "mo_threads.multiprocess.DEBUG_PROCESS": true
     },
     "debug": {"trace": true}
 }
