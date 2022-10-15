@@ -23,7 +23,7 @@ from tempfile import TemporaryFile
 
 import mo_json
 import mo_math
-from mo_dots import concat_field, unwrap, to_data, is_many, list_to_data, listwrap
+from mo_dots import concat_field, from_data, to_data, is_many, list_to_data, listwrap
 from mo_future import HTMLParser, PY3, StringIO, is_binary, is_text, long, text
 from mo_logs import Log
 from mo_logs.exceptions import suppress_exception
@@ -128,7 +128,7 @@ def dict2Multiset(dic):
         return None
     from mo_collections.multiset import Multiset
     output = Multiset()
-    output.dic = unwrap(dic).copy()
+    output.dic = from_data(dic).copy()
     return output
 
 

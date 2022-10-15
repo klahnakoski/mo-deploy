@@ -27,7 +27,7 @@ class BasicMultiOp(Expression):
     data_type = T_NUMBER
     op = None
 
-    def __init__(self, terms):
+    def __init__(self, *terms):
         Expression.__init__(self, terms)
         self.terms = terms
 

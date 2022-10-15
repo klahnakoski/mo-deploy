@@ -12,16 +12,15 @@ from __future__ import absolute_import, division, unicode_literals
 import datetime
 from collections import Mapping
 
-from mo_json.typed_encoder import ARRAY_TYPE, json_type_to_inserter_type
+from mo_json.typed_encoder import json_type_to_inserter_type
 
 from jx_base import Column, TableDesc
-from jx_base.schema import Schema
+from jx_base.models.schema import Schema
 from mo_collections import UniqueIndex
 from mo_dots import (
     Data,
     FlatList,
     NullType,
-    ROOT_PATH,
     concat_field,
     is_container,
     join_field,
@@ -38,6 +37,7 @@ DEBUG = False
 META_TABLES_NAME = "meta.tables"
 META_COLUMNS_NAME = "meta.columns"
 META_COLUMNS_TYPE_NAME = "column"
+ROOT_PATH = [META_COLUMNS_NAME]
 singlton = None
 
 

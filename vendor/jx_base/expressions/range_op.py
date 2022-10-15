@@ -34,5 +34,5 @@ class RangeOp(Expression):
             for op, value in comparisons.value.items()
         ])
 
-    def __init__(self, term):
+    def __init__(self, *term):
         Log.error("Should never happen!")

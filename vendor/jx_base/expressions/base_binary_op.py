@@ -27,7 +27,7 @@ class BaseBinaryOp(Expression):
     data_type = T_NUMBER
     op = None
 
-    def __init__(self, terms, default=None):
+    def __init__(self, *terms, default=None):
         Expression.__init__(self, terms)
         self.lhs, self.rhs = terms
         self.default = coalesce(default, NULL)

@@ -13,7 +13,7 @@ from __future__ import absolute_import, division, unicode_literals
 
 from mo_dots import Data, listwrap, literal_field
 from mo_kwargs import override
-from mo_logs import Log
+from mo_logs import logger
 from mo_logs.exceptions import ALARM, NOTE
 from mo_logs.log_usingNothing import StructuredLogger
 from mo_logs.strings import expand_template
@@ -68,7 +68,7 @@ class StructuredLogger_usingEmail(StructuredLogger):
 
     def write(self, template, params):
         with self.locker:
-            if params.context not in [NOTE, ALARM]:  # SEND ONLY THE NOT BORING STUFF
+            if params.severity not in [NOTE, ALARM]:  # SEND ONLY THE NOT BORING STUFF
                 self.accumulation.append((template, params))
 
             if Date.now() > self.next_send:
@@ -103,7 +103,7 @@ class StructuredLogger_usingEmail(StructuredLogger):
 
             self.accumulation = []
         except Exception as e:
-            Log.warning("Could not send", e)
+            logger.warning("Could not send", e)
         finally:
             self.next_send = Date.now() + self.settings.average_interval * (
                 2 * randoms.float()

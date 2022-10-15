@@ -66,6 +66,10 @@ def replace(match):
     return ESCAPE_DCT[match.group(0)]
 
 
+def quote(s):
+    return '"' + ESCAPE.sub(replace, s) + '"'
+
+
 def float2json(value):
     """
     CONVERT NUMBER TO JSON STRING, WITH BETTER CONTROL OVER ACCURACY
@@ -236,6 +240,16 @@ def _scrub(value, is_done, stack, scrub_text, scrub_number):
             return True
     elif not isinstance(value, Except) and isinstance(value, Exception):
         return _scrub(Except.wrap(value), is_done, stack, scrub_text, scrub_number)
+    elif hasattr(value, "__json__"):
+        try:
+            j = value.__json__()
+            if is_text(j):
+                data = json_decoder(j)
+            else:
+                data = json_decoder("".join(j))
+            return _scrub(data, is_done, stack, scrub_text, scrub_number)
+        except Exception as cause:
+            Log.error("problem with calling __json__()", cause)
     elif hasattr(value, "__data__"):
         try:
             return _scrub(value.__data__(), is_done, stack, scrub_text, scrub_number)
@@ -389,7 +403,7 @@ def json2value(json_string, params=Null, flexible=False, leaves=False):
             Log.error("JSON string is only whitespace")
 
         c = e
-        while "Expecting '" in c.cause and "' delimiter: line" in c.cause:
+        while c.cause and "Expecting '" in c.cause and "' delimiter: line" in c.cause:
             c = c.cause
 
         if "Expecting '" in c and "' delimiter: line" in c:

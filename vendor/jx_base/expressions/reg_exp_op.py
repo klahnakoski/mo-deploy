@@ -22,7 +22,7 @@ class RegExpOp(Expression):
     has_simple_form = True
     data_type = T_BOOLEAN
 
-    def __init__(self, terms):
+    def __init__(self, *terms):
         Expression.__init__(self, terms)
         self.expr, self.pattern = terms
 

@@ -68,7 +68,7 @@ from mo_logs.strings import quote
 from mo_threads import Queue, THREAD_STOP, Thread, Till, MAIN_THREAD
 from mo_times import Date, HOUR, MINUTE, Timer, WEEK, Duration
 
-DEBUG = False
+DEBUG = True
 ENABLE_META_SCAN = True
 TOO_OLD = 24 * HOUR
 OLD_METADATA = MINUTE

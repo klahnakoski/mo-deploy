@@ -11,7 +11,7 @@ from __future__ import absolute_import, division, unicode_literals
 
 from collections import deque
 
-from jx_base.domains import SetDomain
+from jx_base.domains import SetDomain, SimpleSetDomain
 from jx_base.expressions import Variable as Variable_, Variable
 from jx_base.expressions.false_op import FALSE
 from jx_base.expressions.query_op import DEFAULT_LIMIT
@@ -71,7 +71,7 @@ def get_decoders_by_path(query, schema):
             vars_ |= set(Variable(v) for v in edge.domain.dimension.fields)
             edge.domain.dimension = edge.domain.dimension.copy()
             edge.domain.dimension.fields = [c.es_column for v in vars_ for c in schema[v.var]]
-        elif edge.domain.partitions.where and all(edge.domain.partitions.where):
+        elif edge.domain.partitions and all(p.where for p in edge.domain.partitions):
             for p in edge.domain.partitions:
                 vars_ |= p.where.vars()
         else:
@@ -101,7 +101,7 @@ def sort_edges(query, prop):
     for s in jx.reverse(query.sort):
         for e in remaining_edges:
             if e.value == s.value:
-                if isinstance(e.domain, SetDomain):
+                if isinstance(e.domain, (SimpleSetDomain, SetDomain)):
                     pass  # ALREADY SORTED?
                 else:
                     e.domain.sort = s.sort
@@ -177,10 +177,10 @@ def aggop_to_es_queries(select, query_path, schema, query):
                 acc = FilterAggs("_filter" + text(i) + text(p), where, None).add(acc)
             acc = NestedAggs(path).add(acc)
         output.add(acc)
-    output = simplify(output)
-    es_query = to_data(output.to_es(schema))
+    simpler_output = simplify(output)
+    es_query = to_data(simpler_output.to_es(schema))
     es_query.size = 0
-    return output, decoders, es_query
+    return simpler_output, decoders, es_query
 
 
 def es_aggsop(es, frum, query):

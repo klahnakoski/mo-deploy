@@ -15,9 +15,9 @@ import os
 import sys
 import tempfile
 
-from mo_dots import coalesce, listwrap, unwrap, to_data
+from mo_dots import coalesce, listwrap, from_data, to_data
 
-from mo_logs import Log
+from mo_logs import logger
 
 
 # PARAMETERS MATCH argparse.ArgumentParser.add_argument()
@@ -36,7 +36,7 @@ from mo_logs import Log
 # dest - The name of the attribute to be added to the object returned by parse_args().
 class _ArgParser(_argparse.ArgumentParser):
     def error(self, message):
-        Log.error("argparse error: {{error}}", error=message)
+        logger.error("argparse error: {{error}}", error=message)
 
 
 def argparse(defs, complain=True):
@@ -45,10 +45,10 @@ def argparse(defs, complain=True):
         args = d.copy()
         name = args.name
         args.name = None
-        parser.add_argument(*unwrap(listwrap(name)), **args)
+        parser.add_argument(*from_data(listwrap(name)), **args)
     namespace, unknown = parser.parse_known_args()
     if unknown and complain:
-        Log.warning("Ignoring arguments: {{unknown|json}}", unknown=unknown)
+        logger.warning("Ignoring arguments: {{unknown|json}}", unknown=unknown)
     output = {k: getattr(namespace, k) for k in vars(namespace)}
     return to_data(output)
 
@@ -83,9 +83,9 @@ def read_settings(defs=None, filename=None, default_filename=None, complain=True
     )
     settings_file = File(args.filename)
     if settings_file.exists:
-        Log.note("Using {{filename}} for configuration", filename=settings_file.abspath)
+        logger.info("Using {{filename}} for configuration", filename=settings_file.abspath)
     else:
-        Log.error(
+        logger.error(
             "Can not read configuration file {{filename}}",
             filename=settings_file.abspath,
         )
@@ -124,7 +124,7 @@ class SingleInstance:
         self.lockfile = os.path.normpath(tempfile.gettempdir() + "/" + basename)
 
     def __enter__(self):
-        Log.note("SingleInstance.lockfile = " + self.lockfile)
+        logger.info("SingleInstance.lockfile = " + self.lockfile)
         if sys.platform == "win32":
             try:
                 # file already exists, we try to remove (in case previous execution was interrupted)
@@ -164,5 +164,5 @@ class SingleInstance:
                 if os.path.isfile(self.lockfile):
                     os.unlink(self.lockfile)
         except Exception as e:
-            Log.warning("Problem with SingleInstance __del__()", e)
+            logger.warning("Problem with SingleInstance __del__()", e)
             sys.exit(-1)

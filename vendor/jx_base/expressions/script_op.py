@@ -20,7 +20,7 @@ class ScriptOp(Expression):
     ONLY FOR WHEN YOU TRUST THE SCRIPT SOURCE
     """
 
-    def __init__(self, script, data_type):
+    def __init__(self, *script, data_type):
         Expression.__init__(self, None)
         if not is_text(script):
             Log.error("expecting text of a script")

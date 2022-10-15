@@ -12,11 +12,12 @@ from __future__ import absolute_import, division, unicode_literals
 from uuid import uuid4
 
 from jx_base.expressions import jx_expression
-from jx_base.facts import Facts
-from jx_base.namespace import Namespace
-from jx_base.schema import Schema
-from jx_base.snowflake import Snowflake
-from jx_base.table import Table
+from jx_base.models.facts import Facts
+from jx_base.models.namespace import Namespace
+from jx_base.models.snowflake import Snowflake
+from jx_base.models.table import Table
+from jx_base.models.container import Container
+from jx_base.models.relation import Relation
 from jx_python.expressions import Literal
 from mo_dots import coalesce, listwrap, to_data
 from mo_dots.datas import register_data
@@ -32,9 +33,10 @@ from mo_json import (
     OBJECT,
     ARRAY,
 )
-from mo_json.typed_encoder import EXISTS_TYPE
+from mo_json.typed_encoder import EXISTS_KEY
 from mo_logs import Log
 from mo_logs.strings import expand_template, quote
+
 
 ENABLE_CONSTRAINTS = True
 
@@ -77,8 +79,11 @@ def failure(row, rownum, rows, constraint):
         return
     expr = jx_expression(constraint)
 
-    if not expr(row, rownum, row):
-        Log.error("{{row}} fails to pass {{req}}", row=row, req=expr.__data__())
+    try:
+        if not expr(row, rownum, row):
+            raise Log.error("{{row}} fails to pass {{req}}", row=row, req=expr.__data__())
+    except Exception as cause:
+        raise Log.error("{{row}} fails to pass {{req}}", row=row, req=expr.__data__(), cause=cause)
 
 
 def DataClass(name, columns, constraint=None):
@@ -190,10 +195,13 @@ class {{class_name}}(Mapping):
         return object.__hash__(self)
 
     def __eq__(self, other):
-        if isinstance(other, {{class_name}}) and dict(self)==dict(other) and self is not other:
-            Log.error("expecting to be same object")
-        return self is other
-
+        try:
+            if isinstance(other, {{class_name}}) and dict(self)==dict(other) and self is not other:
+                Log.error("expecting to be same object")
+            return self is other
+        except Exception:
+            return False
+            
     def __dict__(self):
         return {k: getattr(self, k) for k in {{slots}}}
 
@@ -250,11 +258,11 @@ TableDesc = DataClass(
         {"name": "last_updated", "nulls": False},
         "columns",
     ],
-    constraint={"and": [{"eq": [{"last": "query_path"}, {"literal": "."}]}]},
+    constraint={"and": [{"ne": [{"last": "query_path"}, {"literal": "."}]}]},
 )
 
 
-from jx_base.container import Container
+from jx_base.models.container import Container
 
 Column = DataClass(
     "Column",
@@ -289,12 +297,12 @@ Column = DataClass(
         {"not": {"eq": {"es_column": "string"}}},
         {"not": {"eq": {"es_type": "object", "jx_type": "exists"}}},
         {
-            "when": {"suffix": {"es_column": "." + EXISTS_TYPE}},
+            "when": {"suffix": {"es_column": "." + EXISTS_KEY}},
             "then": {"eq": {"jx_type": EXISTS}},
             "else": True,
         },
         {
-            "when": {"suffix": {"es_column": "." + EXISTS_TYPE}},
+            "when": {"suffix": {"es_column": "." + EXISTS_KEY}},
             "then": {"exists": "cardinality"},
             "else": True,
         },
@@ -309,7 +317,7 @@ Column = DataClass(
             "else": True,
         },
         {"not": {"prefix": [{"first": "nested_path"}, {"literal": "testdata"}]}},
-        {"eq": [{"last": "nested_path"}, {"literal": "."}]},
+        {"ne": [{"last": "nested_path"}, {"literal": "."}]},  # NESTED PATHS MUST BE REAL TABLE NAMES INSIDE Namespace
         {
             "when": {"eq": [{"literal": ".~N~"}, {"right": {"es_column": 4}}]},
             "then": {"or": [

@@ -15,7 +15,6 @@ from jx_base.expressions.expression import Expression
 from jx_base.expressions.false_op import FALSE
 from jx_base.expressions.literal import Literal, ZERO, ONE, is_literal
 from jx_base.expressions.true_op import TRUE
-from mo_dots import coalesce
 from mo_imports import expect
 from mo_json.types import T_NUMBER
 
@@ -27,20 +26,16 @@ AndOp, CoalesceOp, NULL, OrOp, WhenOp, ToNumberOp = expect(
 class BaseMultiOp(Expression):
     has_simple_form = True
     data_type = T_NUMBER
-    op = None
 
-    def __init__(self, terms, **clauses):
-        Expression.__init__(self, terms)
+    def __init__(self, *terms, nulls=False, **clauses):
+        Expression.__init__(self, *terms)
         self.terms = terms
-        self.default = coalesce(clauses.get("default"), NULL)
-        self.decisive = coalesce(
-            clauses.get("nulls"), FALSE
-        )  # decisive==True WILL HAVE OP RETURN null ONLY IF ALL OPERANDS ARE null
+        # decisive==True WILL HAVE OP RETURN null ONLY IF ALL OPERANDS ARE null
+        self.decisive = nulls in (True, TRUE)
 
     def __data__(self):
         return {
             self.op: [t.__data__() for t in self.terms],
-            "default": self.default,
             "decisive": self.decisive,
         }
 
@@ -53,7 +48,7 @@ class BaseMultiOp(Expression):
     def map(self, map_):
         return self.__class__(
             [t.map(map_) for t in self.terms],
-            **{"default": self.default, "decisive": self.decisive}
+            **{"decisive": self.decisive}
         )
 
     def missing(self, lang):
@@ -104,7 +99,7 @@ class BaseMultiOp(Expression):
                 AndOp([t.missing(lang) for t in terms]),
                 then=self.default,
                 **{"else": operators["basic." + self.op]([
-                    CoalesceOp([t, _jx_identity[self.op]]) for t in terms
+                    CoalesceOp([t, _jx_identity.get(self.op, NULL)]) for t in terms
                 ])}
             ).partial_eval(lang)
         else:
@@ -121,4 +116,4 @@ class BaseMultiOp(Expression):
         return output
 
 
-_jx_identity = {"add": ZERO, "mul": ONE}
+_jx_identity = {"add": ZERO, "mul": ONE, "cardinality": ZERO}

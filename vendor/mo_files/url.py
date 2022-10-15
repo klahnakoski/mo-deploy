@@ -41,7 +41,7 @@ class URL(object):
 
             if value.startswith("file://") or value.startswith("//"):
                 # urlparse DOES NOT WORK IN THESE CASES
-                scheme, suffix = value.split("//", 2)
+                scheme, suffix = value.split("//", 1)
                 self.scheme = scheme.rstrip(":")
                 parse(self, suffix, 0, 1)
                 self.query = to_data(url_param2value(self.query))
@@ -101,7 +101,7 @@ class URL(object):
         output.host = self.host
         output.port = self.port
         output.path = self.path
-        output.query = self.query
+        output.query = Data(**self.query)
         output.fragment = self.fragment
         return output
 
@@ -150,14 +150,14 @@ def hex2chr(hex):
 
 if PY2:
     _map2url = {chr(i): chr(i) for i in range(32, 128)}
-    for c in "{}<>;/?:@&=+$%,+":
+    for c in "{}<>;/?@&=+$%,+":
         _map2url[c] = "%" + str(int2hex(ord(c), 2))
     for i in range(128, 256):
         _map2url[chr(i)] = "%" + str(int2hex(i, 2))
     _map2url[chr(32)] = "+"
 else:
     _map2url = {i: unichr(i) for i in range(32, 128)}
-    for c in b"{}<>;/?:@&=+$%,+":
+    for c in b"{}<>;/?@&=+$%,+":
         _map2url[c] = "%" + int2hex(c, 2)
     for i in range(128, 256):
         _map2url[i] = "%" + str(int2hex(i, 2))
@@ -282,11 +282,11 @@ def url_param2value(param):
     for p in param.split("&"):
         if not p:
             continue
-        if p.find("=") == -1:
+        if "=" not in p:
             k = p
             v = True
         else:
-            k, v = p.split("=")
+            k, v = p.split("=", 1)
             k = _decode(k)
             v = _decode(v)
 
@@ -354,6 +354,7 @@ def value2url_param(value):
         )
     elif is_text(value):
         try:
+            # IF STRING LOOKS LIKE JSON, THEN IT IS AMBIGUOUS, ENCODE IT
             json2value(value)
             output = _encode(value2json(value))
         except Exception:
@@ -361,12 +362,14 @@ def value2url_param(value):
     elif is_binary(value):
         output = "".join(_map2url[c] for c in value)
     elif is_many(value):
-        output = ",".join(
-            vv for v in value for vv in [value2url_param(v)] if vv or vv == 0
-        )
+        if any(is_data(v) or is_many(v) for v in value):
+            output = _encode(value2json(value))
+        else:
+            output = ",".join(vv for v in value for vv in [value2url_param(v)] if vv or vv == 0)
     else:
         output = _encode(value2json(value))
     return output
+
 
 def is_integer(s):
     if s is True or s is False:

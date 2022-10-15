@@ -11,11 +11,12 @@
 
 from __future__ import absolute_import, division, unicode_literals
 
-import jx_base
+from jx_base.models.table import Table
 from mo_kwargs import override
+from mo_logs import Log
 
 
-class BaseTable(jx_base.Table):
+class BaseTable(Table):
     @override
     def __init__(self, name, container):
         """
@@ -40,3 +41,7 @@ class BaseTable(jx_base.Table):
     def schema(self):
         return self.container.ns.get_schema(self.name)
 
+    def get_table(self, name):
+        if self.name == name:
+            return self
+        Log.error("not found")

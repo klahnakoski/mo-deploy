@@ -12,16 +12,15 @@ from __future__ import absolute_import, division, unicode_literals
 from datetime import date, datetime
 from decimal import Decimal
 
-from mo_dots.datas import register_data, Data, SLOT
+from mo_dots.datas import register_data, Data
 from mo_dots.lists import FlatList
 from mo_dots.nones import NullType, Null
-from mo_dots.utils import CLASS, OBJ
+from mo_dots.utils import CLASS, SLOT
 from mo_future import (
     binary_type,
     generator_types,
     get_function_arguments,
     get_function_defaults,
-    none_type,
     text,
     Mapping,
 )
@@ -42,52 +41,46 @@ class DataObject(Mapping):
     TREAT AN OBJECT LIKE DATA
     """
 
+    __slots__ = [SLOT]
+
     def __init__(self, obj):
-        _set(self, OBJ, obj)
+        _set(self, SLOT, obj)
 
     def __getattr__(self, item):
-        obj = _get(self, OBJ)
+        obj = _get(self, SLOT)
         output = get_attr(obj, item)
         return datawrap(output)
 
     def __setattr__(self, key, value):
-        obj = _get(self, OBJ)
+        obj = _get(self, SLOT)
         set_attr(obj, key, value)
 
     def __getitem__(self, item):
-        obj = _get(self, OBJ)
+        obj = _get(self, SLOT)
+        output = get_attr(obj, item)
+        return datawrap(output)
+
+    def get(self, item):
+        obj = _get(self, SLOT)
         output = get_attr(obj, item)
         return datawrap(output)
 
     def keys(self):
-        obj = _get(self, OBJ)
+        obj = _get(self, SLOT)
         try:
             return obj.__dict__.keys()
         except Exception as e:
             raise e
 
     def items(self):
-        obj = _get(self, OBJ)
+        obj = _get(self, SLOT)
         try:
-            return obj.__dict__.items()
+            yield from obj.__dict__.items()
         except Exception as e:
-            return [
-                (k, getattr(obj, k, None)) for k in dir(obj) if not k.startswith("__")
-            ]
-
-    def iteritems(self):
-        obj = _get(self, OBJ)
-        try:
-            return obj.__dict__.iteritems()
-        except Exception as e:
-
-            def output():
-                for k in dir(obj):
-                    if k.startswith("__"):
-                        continue
-                    yield k, getattr(obj, k, None)
-
-            return output()
+            for k in dir(obj):
+                if k.startswith("__"):
+                    continue
+                yield k, getattr(obj, k, None)
 
     def __data__(self):
         return self
@@ -95,20 +88,16 @@ class DataObject(Mapping):
     def __iter__(self):
         return (k for k in self.keys())
 
-    def __unicode__(self):
-        obj = _get(self, OBJ)
-        return text(obj)
-
     def __str__(self):
-        obj = _get(self, OBJ)
+        obj = _get(self, SLOT)
         return str(obj)
 
     def __len__(self):
-        obj = _get(self, OBJ)
+        obj = _get(self, SLOT)
         return len(obj)
 
     def __call__(self, *args, **kwargs):
-        obj = _get(self, OBJ)
+        obj = _get(self, SLOT)
         return obj(*args, **kwargs)
 
 
@@ -116,11 +105,17 @@ register_data(DataObject)
 
 
 def datawrap(v):
+    try:
+        if v == None:
+            return Null
+    except Exception:
+        pass
+
     type_ = _get(v, CLASS)
 
     if type_ is dict:
         m = _new(Data)
-        _set(m, SLOT, v)  # INJECT m.__dict__=v SO THERE IS NO COPY
+        _set(m, SLOT, v)
         return m
     elif type_ is tuple:
         return FlatList(v)
@@ -132,17 +127,11 @@ def datawrap(v):
         return v
     elif type_ in generator_types:
         return (to_data(vv) for vv in v)
-    elif v == None:
-        return Null
-    try:
-        return v.__data__()
-    except Exception:
-        pass
 
     return DataObject(v)
 
 
-class DictClass(object):
+class DataClass(object):
     """
     ALLOW INSTANCES OF class_ TO ACT LIKE dicts
     ALLOW CONSTRUCTOR TO ACCEPT @override

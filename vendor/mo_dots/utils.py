@@ -13,8 +13,8 @@ import importlib
 
 from mo_future import STDOUT, STDERR
 
-OBJ = str("_obj")
 KEY = str("_key")
+SLOT = str("_internal_value")
 CLASS = str("__class__")
 
 _Log = None
@@ -48,7 +48,7 @@ def get_module(name):
 
 class PoorLogger(object):
     @classmethod
-    def note(cls, note, **kwargs):
+    def info(cls, note, **kwargs):
         STDOUT.write(note.encode("utf8") + b"\n")
 
     @classmethod

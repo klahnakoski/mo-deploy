@@ -30,6 +30,7 @@ from mo_future import (
 from mo_logs import Log
 from mo_times import Date
 
+_get = object.__getattribute__
 builtin_tuple = tuple
 
 Expression = None
@@ -182,6 +183,10 @@ class Language(object):
                 # LET EACH LANGUAGE POINT TO OP CLASS
                 self.ops[op_id] = new_op
                 new_op.lang = self
+                try:
+                    _get(new_op, "op")
+                except AttributeError as _:
+                    new_op.op = new_op.__name__[:-2].lower()
 
                 # ENSURE THE partial_eval IS REGISTERED
                 if jx_op is None:
@@ -252,7 +257,7 @@ class Language(object):
         return self.name
 
 
-def is_op(call, op):
+def is_op(call, op) -> bool:
     """
     :param call: The specific operator instance (a method call)
     :param op: The the operator we are testing against

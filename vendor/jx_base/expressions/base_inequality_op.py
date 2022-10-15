@@ -24,8 +24,8 @@ class BaseInequalityOp(Expression):
     data_type = T_BOOLEAN
     op = None
 
-    def __init__(self, terms):
-        Expression.__init__(self, terms)
+    def __init__(self, *terms):
+        Expression.__init__(self, *terms)
         self.lhs, self.rhs = terms
 
     @property

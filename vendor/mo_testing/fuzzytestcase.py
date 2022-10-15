@@ -15,7 +15,7 @@ import unittest
 
 from mo_collections.unique_index import UniqueIndex
 import mo_dots
-from mo_dots import coalesce, is_container, is_list, literal_field, unwrap, to_data, is_data, is_many
+from mo_dots import coalesce, is_container, is_list, literal_field, from_data, to_data, is_data, is_many
 from mo_future import is_text, zip_longest, first
 from mo_logs import Except, Log, suppress_exception
 from mo_logs.strings import expand_template, quote
@@ -67,8 +67,8 @@ class FuzzyTestCase(unittest.TestCase):
 
 class RaiseContext(object):
 
-    def __init__(self, this, problem=Exception):
-        self.this = this
+    def __init__(self, testcase, problem=Exception):
+        self.testcase = testcase
         self.problem = problem
 
     def __enter__(self):
@@ -89,7 +89,7 @@ class RaiseContext(object):
             if isinstance(problem, object.__class__) and issubclass(problem, BaseException) and isinstance(exc_val, problem):
                 return True
             try:
-                self.this.assertIn(problem, f)
+                self.testcase.assertIn(problem, f)
                 return True
             except Exception as cause:
                 causes.append(cause)
@@ -98,8 +98,8 @@ class RaiseContext(object):
 
 def assertAlmostEqual(test, expected, digits=None, places=None, msg=None, delta=None):
     show_detail = True
-    test = unwrap(test)
-    expected = unwrap(expected)
+    test = from_data(test)
+    expected = from_data(expected)
     try:
         if test is None and (is_null_op(expected) or expected is None):
             return
@@ -111,7 +111,7 @@ def assertAlmostEqual(test, expected, digits=None, places=None, msg=None, delta=
             if test ^ expected:
                 Log.error("Sets do not match")
         elif is_data(expected) and is_data(test):
-            for k, e in unwrap(expected).items():
+            for k, e in from_data(expected).items():
                 t = test.get(k)
                 assertAlmostEqual(t, e, msg=coalesce(msg, "")+"key "+quote(k)+": ", digits=digits, places=places, delta=delta)
         elif is_data(expected):
@@ -220,6 +220,9 @@ def assertAlmostEqualValue(test, expected, digits=None, places=None, msg=None, d
             test = dates.parse(test).unix
         except Exception as e:
             raise AssertionError(expand_template("{{test|json}} != {{expected}}", locals()))
+
+    # WE NOW ASSUME test IS A NUMBER
+    test = float(test)
 
     num_param = 0
     if digits != None:

@@ -26,7 +26,7 @@ class NotOp(Expression):
     def __data__(self):
         return {"not": self.term.__data__()}
 
-    def __call__(self, row, rownum, rows):
+    def __call__(self, row, rownum=None, rows=None):
         return not self.term(row, rownum, rows)
 
     def __eq__(self, other):

@@ -27,7 +27,7 @@ class BasicIndexOfOp(Expression):
 
     data_type = T_INTEGER
 
-    def __init__(self, params):
+    def __init__(self, *params):
         Expression.__init__(self, params)
         self.value, self.find, self.start = params
 

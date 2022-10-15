@@ -12,7 +12,7 @@ from __future__ import absolute_import, division, unicode_literals
 import itertools
 from numbers import Number
 
-from jx_base.expressions import jx_expression
+from jx_base.expressions import jx_expression, NULL, Expression
 from mo_collections.unique_index import UniqueIndex
 from mo_dots import (
     Data,
@@ -22,82 +22,98 @@ from mo_dots import (
     is_container,
     is_data,
     listwrap,
-    set_default,
-    unwrap,
     to_data,
     dict_to_data,
     list_to_data,
+    from_data,
 )
+from mo_json.types import JsonType, T_NUMBER, T_INTEGER, T_TEXT, T_TIME, T_INTERVAL, python_type_to_json_type
 from mo_future import text
+from mo_kwargs import override
 from mo_logs import Log
 from mo_math import MAX, MIN
 from mo_times.dates import Date
 from mo_times.durations import Duration
 
+# DOMAINS THAT HAVE ALGEBRAIC OPERATIONS DEFINED
 ALGEBRAIC = {
     "time",
     "duration",
     "numeric",
     "count",
     "datetime",
-}  # DOMAINS THAT HAVE ALGEBRAIC OPERATIONS DEFINED
+}
+# DOMAINS THAT HAVE A KNOWN NUMBER FOR PARTS AT QUERY TIME
 KNOWN = {
     "set",
     "boolean",
     "duration",
     "time",
     "numeric",
-}  # DOMAINS THAT HAVE A KNOWN NUMBER FOR PARTS AT QUERY TIME
-PARTITION = {"uid", "set", "boolean"}  # DIMENSIONS WITH CLEAR PARTS
+}
+# DIMENSIONS WITH CLEAR PARTS
+PARTITION = {"uid", "set", "boolean"}
 
 
 class Domain(object):
     __slots__ = [
         "name",
         "type",
+        "element_type",
         "value",
         "key",
         "label",
         "end",
-        "isFacet",
+        "is_facet",
         "where",
         "dimension",
         "primitive",
-        "limit",
+        "limit"
     ]
 
-    def __new__(cls, **desc):
+    @override(kwargs="desc")
+    def __new__(cls, type=None, desc=None):
         if cls == Domain:
-            type_name = desc.get("type")
             try:
-                return name_to_type[type_name](**desc)
+                return object.__new__(name_to_type[type])
             except Exception as e:
                 Log.error(
                     'Problem with {"domain":{"type":{{type|quote}}}}',
-                    type=type_name,
+                    type=type,
                     cause=e,
                 )
         else:
             return object.__new__(cls)
 
-    def __init__(self, **desc):
-        desc = to_data(desc)
-        self._set_slots_to_null(self.__class__)
-        set_default(self, desc)
-        self.name = coalesce(desc.name, desc.type)
-        self.isFacet = coalesce(desc.isFacet, False)
+    @override(kwargs="desc")
+    def __init__(
+        self,
+        name=None,
+        value=None,
+        key=None,
+        label=None,
+        end=None,
+        is_facet=False,
+        where=None,
+        primitive=None,
+        limit=NULL,
+        desc=None,
+    ):
+        self._set_slots(self.__class__, desc)
+        self.name = coalesce(name, type)
+        if not isinstance(limit, Expression):
+            self.limit = jx_expression(limit)
         self.dimension = Null
-        self.limit = desc.limit
 
-    def _set_slots_to_null(self, cls):
+    def _set_slots(self, cls, data):
         """
         WHY ARE SLOTS NOT ACCESIBLE UNTIL WE ASSIGN TO THEM?
         """
         if hasattr(cls, "__slots__"):
             for s in cls.__slots__:
-                self.__setattr__(s, Null)
+                self.__setattr__(s, data[s])
         for b in cls.__bases__:
-            self._set_slots_to_null(b)
+            self._set_slots(b, data)
 
     def __copy__(self):
         return self.__class__(**self.__data__())
@@ -111,7 +127,7 @@ class Domain(object):
             "type": self.type,
             "value": self.value,
             "key": self.key,
-            "isFacet": self.isFacet,
+            "is_facet": self.is_facet,
             "where": self.where,
             "dimension": self.dimension,
         })
@@ -161,11 +177,10 @@ class UnitDomain(Domain):
 
 
 class ValueDomain(Domain):
-    __slots__ = ["NULL"]
+    __slots__ = []
 
     def __init__(self, **desc):
-        Domain.__init__(self, **desc)
-        self.NULL = None
+        Domain.__init__(self, desc)
 
     def compare(self, a, b):
         return value_compare(a, b)
@@ -188,16 +203,27 @@ class DefaultDomain(Domain):
     DOMAIN IS A LIST OF OBJECTS, EACH WITH A value PROPERTY
     """
 
-    __slots__ = ["NULL", "partitions", "map", "limit", "sort"]
+    __slots__ = ["partitions", "map", "limit", "sort"]
 
-    def __init__(self, **desc):
-        Domain.__init__(self, **desc)
-
-        self.NULL = Null
+    @override(kwargs="desc")
+    def __init__(
+        self,
+        type="default",
+        name=None,
+        value=None,
+        key=None,
+        label=None,
+        end=None,
+        is_facet=False,
+        where=None,
+        primitive=None,
+        limit=None,
+        desc=None,
+    ):
+        Domain.__init__(self, desc)
         self.partitions = FlatList()
         self.map = dict()
-        self.map[None] = self.NULL
-        self.limit = desc.get("limit")
+        self.map[None] = Null
         self.sort = 1
 
     def compare(self, a, b):
@@ -216,6 +242,9 @@ class DefaultDomain(Domain):
         self.partitions.append(canonical)
         self.map[key] = canonical
         return canonical
+
+    def getKeyByIndex(self, index):
+        return index
 
     def getIndexByKey(self, key):
         canonical = self.map.get(key)
@@ -250,35 +279,48 @@ class SimpleSetDomain(Domain):
     """
 
     __slots__ = [
-        "NULL",  # THE value FOR NULL
         "partitions",  # LIST OF {name, value, dataIndex} dicts
         "map",  # MAP FROM value TO name
         "order",  # MAP FROM value TO dataIndex
     ]
 
-    def __init__(self, **desc):
-        Domain.__init__(self, **desc)
-        desc = to_data(desc)
+    @override(kwargs="desc")
+    def __init__(
+        self,
+        type="set",
+        name=None,
+        value=None,
+        key=None,
+        label=None,
+        end=None,
+        is_facet=False,
+        where=None,
+        primitive=None,
+        limit=None,
+        partitions=None,
+        dimension=None,
+        desc=None,
+    ):
+        Domain.__init__(self, desc)
 
-        self.type = "set"
         self.order = {}
-        self.NULL = Null
         self.partitions = FlatList()
         self.primitive = True  # True IF DOMAIN IS A PRIMITIVE VALUE SET
 
         if isinstance(self.key, set):
             Log.error("problem")
 
-        if not desc.key and (
-            len(desc.partitions) == 0
-            or isinstance(desc.partitions[0], (text, Number, tuple))
+        if not key and (
+            len(partitions) == 0 or isinstance(partitions[0], (text, Number, tuple))
         ):
             # ASSUME PARTS ARE STRINGS, CONVERT TO REAL PART OBJECTS
             self.key = "value"
             self.map = {}
-            self.order[None] = len(desc.partitions)
-            for i, p in enumerate(desc.partitions):
-                part = {"name": p, "value": p, "dataIndex": i}
+            self.order[None] = len(partitions)
+            for i, p in enumerate(partitions):
+                part = {"value": p, "dataIndex": i}
+                if isinstance(p, text):
+                    part['name'] = p
                 self.partitions.append(part)
                 self.map[p] = part
                 self.order[p] = i
@@ -290,41 +332,37 @@ class SimpleSetDomain(Domain):
             self.primitive = True
             return
 
-        if desc.partitions and desc.dimension.fields and len(desc.dimension.fields) > 1:
-            self.key = desc.key
-            self.map = UniqueIndex(keys=desc.dimension.fields)
-        elif desc.partitions and is_container(desc.key):
-            # TODO: desc.key CAN BE MUCH LIKE A SELECT, WHICH UniqueIndex CAN NOT HANDLE
-            self.key = desc.key
-            self.map = UniqueIndex(keys=desc.key)
-        elif desc.partitions and is_data(desc.partitions[0][desc.key]):
+        if partitions and dimension and dimension.fields and len(dimension.fields) > 1:
+            self.key = key
+            self.map = UniqueIndex(keys=dimension.fields)
+        elif partitions and is_container(key):
+            # TODO: key CAN BE MUCH LIKE A SELECT, WHICH UniqueIndex CAN NOT HANDLE
+            self.key = key
+            self.map = UniqueIndex(keys=key)
+        elif partitions and is_data(partitions[0][key]):
             # LOOKS LIKE OBJECTS
-            # sorted = desc.partitions[desc.key]
+            # sorted = partitions[key]
 
-            self.key = desc.key
-            self.map = UniqueIndex(keys=desc.key)
-            self.order = {p[self.key]: p.dataIndex for p in desc.partitions}
-            self.partitions = desc.partitions
-        elif len(desc.partitions) == 0:
+            self.key = key
+            self.map = UniqueIndex(keys=key)
+            self.order = {p[self.key]: p.dataIndex for p in partitions}
+            self.partitions = partitions
+        elif len(partitions) == 0:
             # CREATE AN EMPTY DOMAIN
             self.key = "value"
             self.map = {}
             self.order[None] = 0
             self.label = coalesce(self.label, "name")
             return
-        elif desc.key == None:
-            if (
-                desc.partitions
-                and all(desc.partitions.where)
-                or all(desc.partitions.esfilter)
-            ):
-                if not all(desc.partitions.name):
+        elif key == None:
+            if partitions and all(partitions.where):
+                if not all(partitions.name):
                     Log.error("Expecting all partitions to have a name")
                 self.key = "name"
                 self.map = dict()
-                self.map[None] = self.NULL
-                self.order[None] = len(desc.partitions)
-                for i, p in enumerate(desc.partitions):
+                self.map[None] = Null
+                self.order[None] = len(partitions)
+                for i, p in enumerate(partitions):
                     self.partitions.append({
                         "where": jx_expression(coalesce(p.where, p.esfilter)),
                         "name": p.name,
@@ -333,26 +371,24 @@ class SimpleSetDomain(Domain):
                     self.map[p.name] = p
                     self.order[p.name] = i
                 return
-            elif desc.partitions and len(
-                set(desc.partitions.value) - {None}
-            ) == len(desc.partitions):
+            elif partitions and len(set(partitions.value) - {None}) == len(partitions):
                 # TRY A COMMON KEY CALLED "value".  IT APPEARS UNIQUE
                 self.key = "value"
                 self.map = dict()
-                self.map[None] = self.NULL
-                self.order[None] = len(desc.partitions)
-                for i, p in enumerate(desc.partitions):
+                self.map[None] = Null
+                self.order[None] = len(partitions)
+                for i, p in enumerate(partitions):
                     self.map[p[self.key]] = p
                     self.order[p[self.key]] = i
                 self.primitive = False
             else:
                 Log.error("Domains must have keys, or partitions")
         elif self.key:
-            self.key = desc.key
+            self.key = key
             self.map = dict()
-            self.map[None] = self.NULL
-            self.order[None] = len(desc.partitions)
-            for i, p in enumerate(desc.partitions):
+            self.map[None] = Null
+            self.order[None] = len(partitions)
+            for i, p in enumerate(partitions):
                 self.map[p[self.key]] = p
                 self.order[p[self.key]] = i
             self.primitive = False
@@ -361,8 +397,8 @@ class SimpleSetDomain(Domain):
 
         self.label = coalesce(self.label, "name")
 
-        if hasattr(desc.partitions, "__iter__"):
-            self.partitions = to_data(list(desc.partitions))
+        if hasattr(partitions, "__iter__"):
+            self.partitions = to_data(list(partitions))
         else:
             Log.error("expecting a list of partitions")
 
@@ -385,7 +421,7 @@ class SimpleSetDomain(Domain):
         try:
             canonical = self.map.get(key)
             if not canonical:
-                return self.NULL
+                return Null
             return canonical
         except Exception as e:
             Log.error("problem", e)
@@ -417,51 +453,63 @@ class SimpleSetDomain(Domain):
 
 
 class SetDomain(Domain):
-    __slots__ = ["NULL", "partitions", "map", "order"]
+    __slots__ = ["partitions", "map", "order"]
 
-    def __init__(self, **desc):
-        Domain.__init__(self, **desc)
-        desc = to_data(desc)
+    def __init__(
+        self,
+        type="set",
+        name=None,
+        value=None,
+        key=None,
+        label=None,
+        end=None,
+        is_facet=False,
+        where=None,
+        primitive=None,
+        limit=None,
+        partitions=None,
+        dimension=None,
+        desc=None,
+    ):
+
+        Domain.__init__(self, desc)
 
         self.type = "set"
         self.order = {}
-        self.NULL = Null
         self.partitions = FlatList()
-
+        self.element_type = JsonType(name=T_TEXT, value=python_type_to_json_type(partitions[0]), dataIndex=T_INTEGER)
         if isinstance(self.key, set):
             Log.error("problem")
 
-        if isinstance(desc.partitions[0], (int, float, text)):
+        if isinstance(partitions[0], (int, float, text)):
             # ASSMUE PARTS ARE STRINGS, CONVERT TO REAL PART OBJECTS
             self.key = "value"
-            self.order[None] = len(desc.partitions)
-            for i, p in enumerate(desc.partitions):
+            self.order[None] = len(partitions)
+            for i, p in enumerate(partitions):
                 part = {"name": p, "value": p, "dataIndex": i}
                 self.partitions.append(part)
                 self.map[p] = part
                 self.order[p] = i
-        elif (
-            desc.partitions and desc.dimension.fields and len(desc.dimension.fields) > 1
-        ):
-            self.key = desc.key
-            self.map = UniqueIndex(keys=desc.dimension.fields)
-        elif desc.partitions and is_container(desc.key):
-            # TODO: desc.key CAN BE MUCH LIKE A SELECT, WHICH UniqueIndex CAN NOT HANDLE
-            self.key = desc.key
-            self.map = UniqueIndex(keys=desc.key)
-        elif desc.partitions and is_data(desc.partitions[0][desc.key]):
-            self.key = desc.key
-            self.map = UniqueIndex(keys=desc.key)
-            # self.key = UNION(*set(d[desc.key].keys()) for d in desc.partitions)
+        elif partitions and dimension.fields and len(dimension.fields) > 1:
+            self.key = key
+            self.map = UniqueIndex(keys=dimension.fields)
+        elif partitions and is_container(key):
+            # TODO: key CAN BE MUCH LIKE A SELECT, WHICH UniqueIndex CAN NOT HANDLE
+            self.key = key
+            self.map = UniqueIndex(keys=key)
+        elif partitions and is_data(partitions[0][key]):
+            self.key = key
+            self.map = UniqueIndex(keys=key)
+            # self.key = UNION(*set(d[key].keys()) for d in partitions)
             # self.map = UniqueIndex(keys=self.key)
-        elif desc.key == None:
+        elif key == None:
             Log.error("Domains must have keys")
         elif self.key:
-            self.key = desc.key
+            self.key = key
             self.map = dict()
-            self.map[None] = self.NULL
-            self.order[None] = len(desc.partitions)
-            for i, p in enumerate(desc.partitions):
+            self.map[None] = Null
+            self.order[None] = len(partitions)
+            for i, p in enumerate(partitions):
                 self.map[p[self.key]] = p
                 self.order[p[self.key]] = i
         elif all(p.esfilter for p in self.partitions):
@@ -493,7 +541,7 @@ class SetDomain(Domain):
         try:
             canonical = self.map.get(key, None)
             if not canonical:
-                return self.NULL
+                return Null
             return canonical
         except Exception as e:
             Log.error("problem", e)
@@ -520,16 +568,34 @@ class SetDomain(Domain):
 
 
 class TimeDomain(Domain):
-    __slots__ = ["max", "min", "interval", "partitions", "NULL", "sort"]
+    __slots__ = ["max", "min", "interval", "partitions", "sort"]
 
-    def __init__(self, **desc):
-        Domain.__init__(self, **desc)
-        self.type = "time"
-        self.NULL = Null
+    @override(kwargs="desc")
+    def __init__(
+        self,
+        type="time",
+        name=None,
+        value=None,
+        key=None,
+        label=None,
+        end=None,
+        is_facet=False,
+        where=None,
+        primitive=None,
+        sort=None,
+        limit=None,
+        min=None,
+        max=None,
+        interval=None,
+        partitions=None,
+        desc=None,
+    ):
+        Domain.__init__(self, desc)
         self.min = Date(self.min)
         self.max = Date(self.max)
         self.interval = Duration(self.interval)
         self.sort = Null
+        self.element_type = JsonType(min=T_TIME, max=T_TIME, dataIndex=T_INTEGER)
 
         if self.partitions:
             # IGNORE THE min, max, interval
@@ -564,7 +630,7 @@ class TimeDomain(Domain):
         for p in self.partitions:
             if p.min <= key < p.max:
                 return p
-        return self.NULL
+        return Null
 
     def getKey(self, part):
         return part[self.key]
@@ -583,27 +649,44 @@ class TimeDomain(Domain):
 
 
 class DurationDomain(Domain):
-    __slots__ = ["max", "min", "interval", "partitions", "NULL"]
+    __slots__ = ["max", "min", "interval", "partitions"]
 
-    def __init__(self, **desc):
-        Domain.__init__(self, **desc)
-        self.type = "duration"
-        self.NULL = Null
-        self.min = Duration(self.min)
-        self.max = Duration(self.max)
-        self.interval = Duration(self.interval)
-
-        if self.partitions:
+    @override(kwargs="desc")
+    def __init__(
+        self,
+        type="duration",
+        name=None,
+        value=None,
+        key=None,
+        label=None,
+        end=None,
+        is_facet=False,
+        where=None,
+        primitive=None,
+        limit=None,
+        min=None,
+        max=None,
+        interval=None,
+        partitions=None,
+        desc=None,
+    ):
+        self.element_type = JsonType(min=T_INTERVAL, max=T_INTERVAL, dataIndex=T_INTEGER)
+        if partitions:
             # IGNORE THE min, max, interval
-            if not self.key:
+            if not key:
                 Log.error("Must have a key value")
 
             Log.error("not implemented yet")
 
             # VERIFY PARTITIONS DO NOT OVERLAP
             return
-        elif not all([self.min, self.max, self.interval]):
+        elif not all([min, max, interval]):
             Log.error("Can not handle missing parameter")
+
+        Domain.__init__(self, desc)
+        self.min = Duration(self.min)
+        self.max = Duration(self.max)
+        self.interval = Duration(self.interval)
 
         self.key = "min"
         self.partitions = list_to_data([
@@ -627,7 +710,7 @@ class DurationDomain(Domain):
         for p in self.partitions:
             if p.min <= key < p.max:
                 return p
-        return self.NULL
+        return Null
 
     def getKey(self, part):
         return part[self.key]
@@ -646,18 +729,35 @@ class DurationDomain(Domain):
 
 
 class NumericDomain(Domain):
+    # ZERO DIMENSIONAL RANGE
+
     __slots__ = ["max", "min"]
 
-    def __new__(cls, **desc):
-        if not desc.get("partitions") and not desc.get("interval"):
+    @override(kwargs="desc")
+    def __new__(cls, partitions=None, interval=None, desc=None):
+        if not partitions and not interval:
             return object.__new__(cls)
         else:
             return object.__new__(RangeDomain)
 
-    def __init__(self, **desc):
-        Domain.__init__(self, **desc)
-        self.min = desc.get("min")
-        self.max = desc.get("max")
+    @override(kwargs="desc")
+    def __init__(
+        self,
+        type="range",
+        name=None,
+        value=None,
+        key=None,
+        label=None,
+        end=None,
+        is_facet=False,
+        where=None,
+        primitive=None,
+        limit=None,
+        min=None,
+        max=None,
+        desc=None,
+    ):
+        Domain.__init__(self, desc)
 
     def compare(self, a, b):
         return value_compare(a, b)
@@ -670,9 +770,9 @@ class NumericDomain(Domain):
 
     def getPartByKey(self, key):
         if self.min != None and key < self.min:
-            return self.NULL
+            return Null
         if self.max != None and key >= self.max:
-            return self.NULL
+            return Null
         return key
 
     def getKey(self, part):
@@ -709,47 +809,62 @@ class UniqueDomain(Domain):
 
 
 class RangeDomain(Domain):
-    __slots__ = ["max", "min", "interval", "partitions", "NULL"]
+    __slots__ = ["max", "min", "interval", "partitions"]
 
-    def __init__(self, **desc):
-        Domain.__init__(self, **desc)
+    @override(kwargs="desc")
+    def __init__(
+        self,
+        type="range",
+        name=None,
+        value=None,
+        key=None,
+        label=None,
+        end=None,
+        is_facet=False,
+        where=None,
+        primitive=None,
+        limit=None,
+        min=None,
+        max=None,
+        interval=None,  # FOR EQUAL_SPACED PARTITIONS
+        partitions=None,
+        desc=None,
+    ):
+        Domain.__init__(self, desc)
         self.type = "range"
-        self.NULL = Null
+        self.element_type = JsonType(min=T_NUMBER, max=T_NUMBER, dataIndex=T_INTEGER)
 
-        if self.partitions:
+        if partitions:
             # IGNORE THE min, max, interval
-            if not self.key:
+            if not key:
                 Log.error("Must have a key value")
 
-            parts = listwrap(self.partitions)
+            parts = listwrap(partitions)
             for i, p in enumerate(parts):
-                self.min = MIN([self.min, p.min])
-                self.max = MAX([self.max, p.max])
+                self.min = MIN([min, p.min])
+                self.max = MAX([max, p.max])
                 if p.dataIndex != None and p.dataIndex != i:
+                    Log.error("Expecting `dataIndex` to agree with the order of the parts")
+                if p[key] == None:
                     Log.error(
-                        "Expecting `dataIndex` to agree with the order of the parts"
-                    )
-                if p[self.key] == None:
-                    Log.error(
-                        "Expecting all parts to have {{key}} as a property",
-                        key=self.key,
+                        "Expecting all parts to have {{key}} as a property", key=key,
                     )
                 p.dataIndex = i
 
             # VERIFY PARTITIONS DO NOT OVERLAP, HOLES ARE FINE
             for p, q in itertools.product(parts, parts):
-                if p.min <= q.min and q.min < p.max and unwrap(p) is not unwrap(q):
+                if p.min <= q.min < p.max and from_data(p) is not from_data(q):
                     Log.error("partitions overlap!")
 
-            self.partitions = to_data(parts)
+            self.partitions = parts
             return
-        elif any([self.min == None, self.max == None, self.interval == None]):
+        elif any([min == None, max == None, interval == None]):
             Log.error("Can not handle missing parameter")
 
         self.key = "min"
         self.partitions = list_to_data([
-            {"min": v, "max": v + self.interval, "dataIndex": i}
-            for i, v in enumerate(frange(self.min, self.max, self.interval))
+            {"min": v, "max": v + interval, "dataIndex": i}
+            for i, v in enumerate(frange(min, max, interval))
         ])
 
     def compare(self, a, b):
@@ -768,7 +883,7 @@ class RangeDomain(Domain):
         for p in self.partitions:
             if p.min <= key < p.max:
                 return p
-        return self.NULL
+        return Null
 
     def getKey(self, part):
         return part[self.key]
@@ -816,7 +931,7 @@ name_to_type = {
     "set": SimpleSetDomain,
     "time": TimeDomain,
     "duration": DurationDomain,
-    "range": NumericDomain,
+    "range": RangeDomain,
     "uid": UniqueDomain,
     "numeric": NumericDomain,
 }

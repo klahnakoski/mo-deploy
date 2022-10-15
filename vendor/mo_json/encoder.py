@@ -14,10 +14,9 @@ import math
 import time
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from json.encoder import encode_basestring
 from math import floor
 
-from mo_dots import Data, FlatList, Null, NullType, SLOT, is_data, is_list, unwrap
+from mo_dots import Data, FlatList, NullType, SLOT, is_data, is_list, from_data
 from mo_future import (
     PYPY,
     binary_type,
@@ -30,12 +29,12 @@ from mo_future import (
     xrange,
     StringIO,
 )
-from mo_json import ESCAPE_DCT, float2json, scrub
 from mo_logs import Except
-from mo_logs.strings import quote
 from mo_times import Timer
 from mo_times.dates import Date
 from mo_times.durations import Duration
+
+from mo_json import ESCAPE_DCT, float2json, scrub, quote
 
 json_decoder = json.JSONDecoder().decode
 _get = object.__getattribute__
@@ -202,12 +201,16 @@ def _value2json(value, _buffer):
             else:
                 _dict2json(value, _buffer)
             return
+        elif hasattr(value, "__json__"):
+            j = value.__json__()
+            if is_text(j):
+                append(_buffer, j)
+            else:
+                for jj in j:
+                    append(_buffer, jj)
         elif hasattr(value, "__data__"):
             d = value.__data__()
             _value2json(d, _buffer)
-        elif hasattr(value, "__json__"):
-            j = value.__json__()
-            append(_buffer, j)
         elif hasattr(value, "__iter__"):
             _iter2json(value, _buffer)
         else:
@@ -278,10 +281,10 @@ def pretty_json(value):
             return "null"
         elif is_data(value):
             try:
-                value = unwrap(value)
+                value = from_data(value)
                 items = sort_using_key(value.items(), lambda r: r[0])
                 values = [
-                    encode_basestring(k) + PRETTY_COLON + pretty_json(v)
+                    quote(k) + PRETTY_COLON + pretty_json(v)
                     for k, v in items
                     if v != None
                 ]
@@ -368,7 +371,7 @@ def pretty_json(value):
             if (
                 len(js) < ARRAY_MIN_ITEMS
                 and max_len <= ARRAY_ITEM_MAX_LENGTH
-                and max(*[j.find("\n") for j in js]) == -1
+                and not any("\n" in j for j in js)
             ):
                 # ALL TINY VALUES
                 num_columns = max(

@@ -28,9 +28,9 @@ class FindOp(Expression):
     has_simple_form = True
     data_type = T_INTEGER
 
-    def __init__(self, term, **kwargs):
-        Expression.__init__(self, term)
-        self.value, self.find = term
+    def __init__(self, value, find, **kwargs):
+        Expression.__init__(self, value, find)
+        self.value, self.find = value, find
         self.default = kwargs.get("default", NULL)
         self.start = kwargs.get("start", ZERO).partial_eval(JX)
         if self.start is NULL:
@@ -51,7 +51,7 @@ class FindOp(Expression):
             output["default"] = self.default.__data__()
         return output
 
-    def __call__(self, row, rownum, rows):
+    def __call__(self, row, rownum=None, rows=None):
         value = self.value(row, rownum, rows)
         if is_missing(value):
             return None

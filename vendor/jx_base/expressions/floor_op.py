@@ -26,7 +26,7 @@ class FloorOp(Expression):
     has_simple_form = True
     data_type = T_NUMBER
 
-    def __init__(self, terms, default=NULL):
+    def __init__(self, *terms, default=NULL):
         Expression.__init__(self, terms)
         if len(terms) == 1:
             self.lhs = terms[0]

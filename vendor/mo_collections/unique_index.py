@@ -10,7 +10,7 @@
 
 from __future__ import absolute_import, division, unicode_literals
 
-from mo_dots import is_data, is_sequence, tuplewrap, unwrap, to_data, list_to_data
+from mo_dots import is_data, is_sequence, tuplewrap, from_data, to_data, list_to_data
 from mo_future import PY2, iteritems, Set, Mapping, Iterable, first
 from mo_logs import Log
 from mo_logs.exceptions import suppress_exception
@@ -58,7 +58,7 @@ class UniqueIndex(Set, Mapping):
         #     d = self._data.get(key)
         #     if d != None:
         #         Log.error("key already filled")
-        #     self._data[key] = unwrap(value)
+        #     self._data[key] = from_data(value)
         #     self.count += 1
         #
         # except Exception as e:
@@ -84,7 +84,7 @@ class UniqueIndex(Set, Mapping):
             key = value2key(self._keys, val)
 
         if d is None:
-            self._data[key] = unwrap(val)
+            self._data[key] = from_data(val)
             self.count += 1
         elif d is not val:
             if self.fail_on_dup:
@@ -116,12 +116,8 @@ class UniqueIndex(Set, Mapping):
     def __contains__(self, key):
         return self[key] != None
 
-    if PY2:
-        def __iter__(self):
-            return (to_data(v) for v in self._data.itervalues())
-    else:
-        def __iter__(self):
-            return (to_data(v) for v in self._data.values())
+    def __iter__(self):
+        return (to_data(v) for v in self._data.values())
 
     def __sub__(self, other):
         output = UniqueIndex(self._keys, fail_on_dup=self.fail_on_dup)

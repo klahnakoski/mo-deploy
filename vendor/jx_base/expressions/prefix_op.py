@@ -31,7 +31,7 @@ class PrefixOp(Expression):
     data_type = T_BOOLEAN
 
     def __init__(self, expr, prefix):
-        Expression.__init__(self, (expr, prefix))
+        Expression.__init__(self, expr, prefix)
         self.expr = expr
         self.prefix = prefix
 
@@ -61,7 +61,7 @@ class PrefixOp(Expression):
         else:
             return {"prefix": [self.expr.__data__(), self.prefix.__data__()]}
 
-    def __call__(self, row, rownum, rows):
+    def __call__(self, row, rownum=None, rows=None):
         expr = self.expr(row, rownum, rows)
         if is_missing(expr):
             return None
@@ -94,4 +94,4 @@ class PrefixOp(Expression):
     def __eq__(self, other):
         if not is_op(other, PrefixOp):
             return False
-        return self.expr == other.expr and self.prefix == other.prefix
+        return self.expr == other.frum and self.prefix == other.prefix

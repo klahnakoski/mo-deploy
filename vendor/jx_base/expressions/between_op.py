@@ -24,7 +24,6 @@ from jx_base.expressions.min_op import MinOp
 from jx_base.expressions.null_op import NULL
 from jx_base.expressions.variable import Variable
 from jx_base.expressions.when_op import WhenOp
-from jx_base.expressions.to_boolean_op import ToBooleanOp
 from jx_base.language import is_op
 from mo_dots import is_data, is_sequence, to_data, coalesce
 from mo_json.types import T_TEXT
@@ -34,7 +33,7 @@ from mo_logs import Log
 class BetweenOp(Expression):
     data_type = T_TEXT
 
-    def __init__(self, value, prefix, suffix, default=NULL, start=NULL):
+    def __init__(self, *value, prefix, suffix, default=NULL, start=NULL):
         Expression.__init__(self, [])
         self.value = value
         self.prefix = coalesce(prefix, NULL)
@@ -48,6 +47,7 @@ class BetweenOp(Expression):
 
     @classmethod
     def define(cls, expr):
+        expr = to_data(expr)
         term = expr.between
         if is_sequence(term):
             return BetweenOp(

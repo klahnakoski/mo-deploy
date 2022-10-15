@@ -6,8 +6,6 @@
 #
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
-from __future__ import absolute_import, division, unicode_literals
-
 import sys
 
 from mo_dots import _set_attr as mo_dots_set_attr, split_field, to_data
@@ -29,9 +27,9 @@ def set(constants):
         errors = []
         k_path = split_field(full_path)
         if len(k_path) < 2:
-            from mo_logs import Log
+            from mo_logs import logger
 
-            Log.error(
+            logger.error(
                 "expecting <module>.<constant> format, not {{path|quote}}", path=k_path
             )
         name = k_path[-1]
@@ -56,9 +54,9 @@ def set(constants):
 
             old_value = mo_dots_set_attr(caller_globals, [name], new_value)
             if DEBUG:
-                from mo_logs import Log
+                from mo_logs import logger
 
-                Log.note(
+                logger.info(
                     "Changed {{module}}[{{attribute}}] from {{old_value}} to"
                     " {{new_value}}",
                     module=caller_module,
@@ -71,6 +69,6 @@ def set(constants):
             errors.append(e)
 
         if errors:
-            from mo_logs import Log
+            from mo_logs import logger
 
-            Log.error("Can not set constant {{path}}", path=full_path, cause=errors)
+            logger.error("Can not set constant {{path}}", path=full_path, cause=errors)

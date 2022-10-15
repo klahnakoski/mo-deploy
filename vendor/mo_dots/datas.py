@@ -12,10 +12,6 @@ from __future__ import absolute_import, division, unicode_literals
 from copy import copy, deepcopy
 from decimal import Decimal
 
-from mo_dots.lists import is_list, FlatList, is_sequence, is_many, LIST
-from mo_dots.nones import Null, NullType
-from mo_dots.utils import CLASS
-from mo_dots.utils import get_logger
 from mo_future import (
     generator_types,
     iteritems,
@@ -25,6 +21,11 @@ from mo_future import (
     OrderedDict,
 )
 from mo_imports import expect
+
+from mo_dots.lists import is_list, FlatList, is_sequence, is_many
+from mo_dots.nones import Null, NullType
+from mo_dots.utils import CLASS, SLOT
+from mo_dots.utils import get_logger
 
 (
     _getdefault,
@@ -37,6 +38,7 @@ from mo_imports import expect
     null_types,
     list_to_data,
     dict_to_data,
+    concat_field,
 ) = expect(
     "_getdefault",
     "coalesce",
@@ -48,6 +50,7 @@ from mo_imports import expect
     "null_types",
     "list_to_data",
     "dict_to_data",
+    "concat_field",
 )
 
 
@@ -55,7 +58,6 @@ _get = object.__getattribute__
 _set = object.__setattr__
 _new = object.__new__
 
-SLOT = str("_internal_value")
 DEBUG = False
 
 
@@ -70,27 +72,20 @@ class Data(object):
         """
         CONSTRUCT DATA WITH GIVEN PROPERTY VALUES
         """
-        if args and isinstance(args[0], dict) and args[0]:
-            # TEMPORARY WHILE WE BOOTSTRAP mo-logs
-            _set(self, SLOT, args[0])
-            return
         if args:
-            raise Exception("only keywords are allowed, not "+args[0].__class__.__name__)
+            raise Exception(
+                "only keywords are allowed, not " + args[0].__class__.__name__
+            )
         _set(self, SLOT, kwargs)
 
     def __bool__(self):
         d = _get(self, SLOT)
         if _get(d, CLASS) is dict:
-            return bool(d)
+            return True
         else:
             return d != None
 
-    def __nonzero__(self):
-        d = _get(self, SLOT)
-        if _get(d, CLASS) is dict:
-            return True if d else False
-        else:
-            return d != None
+    __nonzero__ = __bool__
 
     def __contains__(self, item):
         value = Data.__getitem__(self, item)
@@ -100,7 +95,10 @@ class Data(object):
 
     def __iter__(self):
         d = _get(self, SLOT)
-        return d.__iter__()
+        if _get(d, CLASS) is dict:
+            yield from d.items()
+        else:
+            yield from d.__iter__()
 
     def __getitem__(self, key):
         if key == None:
@@ -149,7 +147,7 @@ class Data(object):
         try:
             d = _get(self, SLOT)
             value = from_data(value)
-            if key.find(".") == -1:
+            if "." not in key:
                 if value is None:
                     d.pop(key, None)
                 else:
@@ -375,7 +373,7 @@ class Data(object):
         return to_data(deepcopy(d, memo))
 
     def __delitem__(self, key):
-        if key.find(".") == -1:
+        if "." not in key:
             d = _get(self, SLOT)
             d.pop(key, None)
             return
@@ -399,10 +397,7 @@ class Data(object):
         return v
 
     def __str__(self):
-        try:
-            return dict.__str__(_get(self, SLOT))
-        except Exception:
-            return "{}"
+        return dict.__str__(_get(self, SLOT))
 
     def __dir__(self):
         d = _get(self, SLOT)
@@ -427,41 +422,30 @@ def leaves(value, prefix=None):
     :param prefix:  OPTIONAL PREFIX GIVEN TO EACH KEY
     :return: Data, WHICH EACH KEY BEING A PATH INTO value TREE
     """
-    prefix = coalesce(prefix, "")
-    output = []
+    if not prefix:
+        yield from _leaves(value, ".")
+    else:
+        for k, v in _leaves(value, "."):
+            yield prefix + k, v
+
+
+def _leaves(value, parent):
     for k, v in value.items():
         try:
+            kk = concat_field(parent, literal_field(k))
             if _get(v, CLASS) in data_types:
-                output.extend(leaves(v, prefix=prefix + literal_field(k) + "."))
+                yield from _leaves(v, kk)
             else:
-                output.append((prefix + literal_field(k), from_data(v)))
+                yield kk, to_data(v)
         except Exception as e:
             get_logger().error("Do not know how to handle", cause=e)
-    return output
 
 
 def _split_field(field):
     """
     SIMPLE SPLIT, NO CHECKS
     """
-    return [k.replace("\a", ".") for k in field.replace("\\.", "\a").replace("\b", "\\.").split(".")]
-
-
-def _str(value, depth):
-    """
-    FOR DEBUGGING POSSIBLY RECURSIVE STRUCTURES
-    """
-    output = []
-    if depth > 0 and _get(value, CLASS) in data_types:
-        for k, v in value.items():
-            output.append(str(k) + "=" + _str(v, depth - 1))
-        return "{" + ",\n".join(output) + "}"
-    elif depth > 0 and is_list(value):
-        for v in value:
-            output.append(_str(v, depth - 1))
-        return "[" + ",\n".join(output) + "]"
-    else:
-        return str(type(value))
+    return [k.replace("\b", ".") for k in field.replace("..", "\b").split(".")]
 
 
 def _iadd(self, other):
@@ -473,7 +457,18 @@ def _iadd(self, other):
     """
 
     if not _get(other, CLASS) in data_types:
-        get_logger().error("Expecting Data")
+        # HAPPENS WHEN _iadd WITH ['.'] SELF REFERENCE
+        d = _get(self, SLOT)
+        if isinstance(d, dict) and not len(d):
+            # LOOKS LIKE A FRESH Data OBJECT (AN IDENTITY ELEMENT)
+            # ∀ x, x += {} => x
+            d = Data()
+        else:
+            d = dict_to_data({"$": self})
+        d += dict_to_data({"$": other})
+        d['.'] = d['$']
+        return d
+
     d = from_data(self)
     for ok, ov in other.items():
         sv = d.get(ok)

@@ -1,3 +1,4 @@
+
 # encoding: utf-8
 #
 #
@@ -80,7 +81,7 @@ def _inequality_to_python(self, not_null=False, boolean=False):
 
     output = (
         WhenOp(
-            OrOp([self.lhs.missing(Python), self.rhs.missing(Python)]),
+            OrOp(self.lhs.missing(Python), self.rhs.missing(Python)),
             **{
                 "then": FALSE,
                 "else": PythonScript(type=T_BOOLEAN, expr=script, frum=self),
@@ -101,7 +102,7 @@ def _binaryop_to_python(self, not_null=False, boolean=False):
     missing = OrOp([
         self.lhs.missing(Python),
         self.rhs.missing(Python),
-    ]).partial_eval(lang)
+    ]).partial_eval(Python)
     if missing is FALSE:
         return script
     else:
@@ -114,14 +115,14 @@ def multiop_to_python(self, not_null=False, boolean=False, many=False):
         return (self.default).to_python()
     elif self.default is NULL:
         return sign.join(
-            "coalesce(" + (t).to_python() + ", " + zero + ")" for t in self.terms
+            "coalesce(" + t.to_python() + ", " + zero + ")" for t in self.terms
         )
     else:
         return (
             "coalesce("
-            + sign.join("(" + (t).to_python() + ")" for t in self.terms)
+            + sign.join("(" + t.to_python() + ")" for t in self.terms)
             + ", "
-            + (self.default).to_python()
+            + self.default.to_python()
             + ")"
         )
 

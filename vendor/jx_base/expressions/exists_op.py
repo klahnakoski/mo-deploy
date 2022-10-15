@@ -23,13 +23,13 @@ class ExistsOp(Expression):
     data_type = T_BOOLEAN
 
     def __init__(self, term):
-        Expression.__init__(self, [term])
+        Expression.__init__(self, term)
         self.expr = term
 
     def __data__(self):
         return {"exists": self.expr.__data__()}
 
-    def __call__(self, row, rownum, rows):
+    def __call__(self, row, rownum=None, rows=None):
         value = self.expr(row, rownum, rows)
         return value != None and value != ""
 

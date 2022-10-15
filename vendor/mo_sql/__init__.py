@@ -8,7 +8,7 @@
 
 from __future__ import absolute_import, division, unicode_literals
 
-from mo_future import is_text, PY2
+from mo_future import is_text, first
 from mo_logs import Log
 
 ENABLE_TYPE_CHECKING = True
@@ -53,9 +53,9 @@ class SQL(object):
     def __radd__(self, other):
         if not isinstance(other, SQL):
             if (
-                    is_text(other)
-                    and ENABLE_TYPE_CHECKING
-                    and all(c not in other for c in ('"', "'", "`", "\\"))
+                is_text(other)
+                and ENABLE_TYPE_CHECKING
+                and all(c not in other for c in ('"', "'", "`", "\\"))
             ):
                 return ConcatSQL(SQL(other), self)
             Log.error("Can only concat other SQL", stack_depth=1)
@@ -67,10 +67,6 @@ class SQL(object):
 
     def __data__(self):
         return self.sql
-
-    if PY2:
-        def __unicode__(self):
-            return "".join(self)
 
     def __str__(self):
         return "".join(self)
@@ -115,11 +111,33 @@ class JoinSQL(SQL):
     def __iter__(self):
         sep = NO_SQL
         for v in self.concat:
-            for s in sep:
-                yield s
+            yield from sep
             sep = self.sep
+            yield from v
+
+
+class IndentSQL(SQL):
+    __slots__ = ["concat"]
+
+    def __init__(self, concat):
+        SQL.__init__(self)
+        if ENABLE_TYPE_CHECKING:
+            if not isinstance(concat, (tuple, list)):
+                concat = tuple(concat)
+            if any(not isinstance(s, SQL) for s in concat):
+                Log.error("Can only join other SQL")
+        self.concat = concat
+
+    def __iter__(self):
+        new_line = True
+        for v in self.concat:
             for vv in v:
+                if new_line:
+                    yield from SQL_INDENT
+                    new_line = False
                 yield vv
+                if vv == "\n":
+                    new_line = True
 
 
 class ConcatSQL(SQL):
@@ -131,14 +149,17 @@ class ConcatSQL(SQL):
         """
         if ENABLE_TYPE_CHECKING:
             if any(not isinstance(s, SQL) for s in concat):
-                Log.error("Can only join other SQL")
+                Log.error("Can only join other SQL not {value}", value=first(s for s in concat if not isinstance(s, SQL)))
         self.concat = concat
 
     def __iter__(self):
         for c in self.concat:
-            for cc in c:
-                yield cc
+            yield from c
 
+
+SQL_SPACE = SQL(" ")
+SQL_CR = SQL("\n")
+SQL_INDENT = SQL("   ")
 
 NO_SQL = tuple()
 SQL_STAR = SQL(" * ")
@@ -158,12 +179,12 @@ SQL_ELSE = SQL(" ELSE ")
 SQL_END = SQL(" END ")
 
 SQL_CAST = SQL("CAST")
-SQL_SPACE = SQL(" ")
 SQL_COMMA = SQL(", ")
-SQL_UNION_ALL = SQL("\nUNION ALL\n")
-SQL_UNION = SQL("\nUNION\n")
-SQL_LEFT_JOIN = SQL("\nLEFT JOIN\n")
-SQL_INNER_JOIN = SQL("\nJOIN\n")
+SQL_CROSS_JOIN = ConcatSQL(SQL_CR, SQL("CROSS JOIN"), SQL_CR)
+SQL_UNION_ALL = ConcatSQL(SQL_CR, SQL("UNION ALL"), SQL_CR)
+SQL_UNION = ConcatSQL(SQL_CR, SQL("UNION"), SQL_CR)
+SQL_LEFT_JOIN = ConcatSQL(SQL_CR, SQL("LEFT JOIN"), SQL_CR)
+SQL_INNER_JOIN = ConcatSQL(SQL_CR, SQL("JOIN"), SQL_CR)
 SQL_EMPTY_STRING = SQL("''")
 SQL_ZERO = SQL(" 0 ")
 SQL_ONE = SQL(" 1 ")
@@ -173,22 +194,22 @@ SQL_NEG_ONE = SQL(" -1 ")
 SQL_NULL = SQL(" NULL ")
 SQL_IS_NULL = SQL(" IS NULL ")
 SQL_IS_NOT_NULL = SQL(" IS NOT NULL ")
-SQL_SELECT = SQL("\nSELECT\n")
-SQL_SELECT_AS_STRUCT = SQL("\nSELECT AS STRUCT\n")
-SQL_DELETE = SQL("\nDELETE\n")
-SQL_CREATE = SQL("\nCREATE TABLE\n")
-SQL_INSERT = SQL("\nINSERT INTO\n")
-SQL_WITH = SQL("\nWITH ")
-SQL_FROM = SQL("\nFROM\n")
-SQL_WHERE = SQL("\nWHERE\n")
-SQL_GROUPBY = SQL("\nGROUP BY\n")
-SQL_ORDERBY = SQL("\nORDER BY\n")
-SQL_VALUES = SQL("\nVALUES\n")
+SQL_SELECT = ConcatSQL(SQL("SELECT"), SQL_CR)
+SQL_SELECT_AS_STRUCT = ConcatSQL(SQL_CR, SQL("SELECT AS STRUCT"), SQL_CR)
+SQL_DELETE = ConcatSQL(SQL_CR, SQL("DELETE"), SQL_CR)
+SQL_CREATE = ConcatSQL(SQL_CR, SQL("CREATE TABLE"), SQL_CR)
+SQL_INSERT = ConcatSQL(SQL_CR, SQL("INSERT INTO"), SQL_CR)
+SQL_WITH = ConcatSQL(SQL_CR, SQL("WITH "))
+SQL_FROM = ConcatSQL(SQL_CR, SQL("FROM"), SQL_CR)
+SQL_WHERE = ConcatSQL(SQL_CR, SQL("WHERE"), SQL_CR)
+SQL_GROUPBY = ConcatSQL(SQL_CR, SQL("GROUP BY"), SQL_CR)
+SQL_ORDERBY = ConcatSQL(SQL_CR, SQL("ORDER BY"), SQL_CR)
+SQL_VALUES = ConcatSQL(SQL_CR, SQL("VALUES"), SQL_CR)
 SQL_DESC = SQL(" DESC ")
 SQL_ASC = SQL(" ASC ")
-SQL_LIMIT = SQL("\nLIMIT\n")
-SQL_UPDATE = SQL("\nUPDATE\n")
-SQL_SET = SQL("\nSET\n")
+SQL_LIMIT = ConcatSQL(SQL_CR, SQL("LIMIT"), SQL_CR)
+SQL_UPDATE = ConcatSQL(SQL_CR, SQL("UPDATE"), SQL_CR)
+SQL_SET = ConcatSQL(SQL_CR, SQL("SET"), SQL_CR)
 
 SQL_ALTER_TABLE = SQL("ALTER TABLE ")
 SQL_ADD_COLUMN = SQL(" ADD COLUMN ")
@@ -210,7 +231,6 @@ SQL_LT = SQL(" < ")
 SQL_LE = SQL(" <= ")
 SQL_NEG = SQL("-")
 SQL_DOT = SQL(".")
-SQL_CR = SQL("\n")
 
 
 class DB(object):
@@ -229,16 +249,17 @@ def sql_list(list_):
     return ConcatSQL(SQL_SPACE, JoinSQL(SQL_COMMA, list_), SQL_SPACE)
 
 
+def sql_join(sep, list_):
+    return JoinSQL(SQL_COMMA, list_)
+
+
 def sql_iso(*sql):
-    return ConcatSQL(*((SQL_OP,) + sql + (SQL_CP,)))
+    # isoLATE EXPRESSION
+    return ConcatSQL(SQL_OP, SQL_CR, IndentSQL(sql), SQL_CR, SQL_CP)
 
 
 def sql_cast(expr, type):
     return ConcatSQL(SQL_CAST, SQL_OP, expr, SQL_AS, TextSQL(type), SQL_CP)
-
-
-def sql_count(sql):
-    return "COUNT(" + sql + ")"
 
 
 def sql_concat_text(list_):
@@ -248,5 +269,13 @@ def sql_concat_text(list_):
     return JoinSQL(SQL_CONCAT, [sql_iso(l) for l in list_])
 
 
+def sql_call(func_name, *parameters):
+    return ConcatSQL(SQL(func_name), sql_iso(JoinSQL(SQL_COMMA, parameters)))
+
+
+def sql_count(sql):
+    return sql_call("COUNT", sql)
+
+
 def sql_coalesce(list_):
-    return ConcatSQL(SQL("COALESCE("), JoinSQL(SQL_COMMA, list_), SQL_CP)
+    return sql_call("COALESCE", *list_)
