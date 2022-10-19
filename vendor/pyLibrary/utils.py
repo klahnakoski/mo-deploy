@@ -14,6 +14,7 @@ import re
 from jx_python.jx import chunk
 from mo_dots import DataObject, Null, from_data
 from mo_future import zip_longest
+from mo_logs import Log
 
 
 class Version(object):
@@ -29,8 +30,8 @@ class Version(object):
         version = from_data(version)
 
         if isinstance(version, tuple):
-            self.prefix = ('',)
             self.version = version
+            self.prefix = ("", ".", ".", ".", ".", ".", ".")[:len(self.version)]
         elif not version or isinstance(version, DataObject):
             self.prefix = ('',)
             self.version = (0,)
@@ -50,6 +51,8 @@ class Version(object):
                     return v
 
             self.version = tuple(map(scrub, version))
+        if len(self.prefix)!=len(self.version):
+            Log.error("not expected")
 
     def __gt__(self, other):
         other = Version(other)

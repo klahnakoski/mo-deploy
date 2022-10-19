@@ -14,7 +14,7 @@ from mo_deploy.utils import Requirement, parse_req
 from mo_dots import coalesce, listwrap, to_data
 from mo_dots.lists import last
 from mo_files import File, TempDirectory, URL, os_path
-from mo_future import is_binary, is_text, sort_using_key, text
+from mo_future import is_binary, is_text, sort_using_key, text, first
 from mo_http import http
 from mo_json import value2json, json2value
 from mo_logs import Except, Log, strings
@@ -81,11 +81,13 @@ class Module(object):
             # RUN TESTS IN PARALLEL
             while True:
                 try:
-                    test_threads = [
-                        Thread.run("test " + v, self.run_tests, v)
-                        for v in self.test_versions
-                    ]
-                    Thread.join_all(test_threads)
+                    # test_threads = [
+                    #     Thread.run("test " + v, self.run_tests, v)
+                    #     for v in self.test_versions
+                    # ]
+                    # Thread.join_all(test_threads)
+                    for v in self.test_versions:
+                        self.run_tests(v, None)
                     break
                 except Exception as cause:
                     Log.warning("Tests did not pass", cause=cause)
@@ -444,7 +446,7 @@ class Module(object):
                     Log.error(
                         "Expecting unittest results (at least two lines of output)"
                     )
-                num_tests = int(strings.between(stderr[-2], "Ran ", " test"))
+                num_tests = int(strings.between(first(line for line in reversed(stderr) if line.startswith("Ran ")), "Ran ", " test"))
                 if num_tests == 0:
                     Log.error(
                         "Expecting to run some tests: {{error}}", error=stderr[-2]

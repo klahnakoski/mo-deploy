@@ -39,7 +39,7 @@
         "c:/users/kyle/code/jx-sqlite",
 
         "c:/users/kyle/code/mo-parsing",
-        "c:/users/kyle/code/mo-sql-parsing"
+        "c:/users/kyle/code/mo-sql-parsing",
 
         "c:/users/kyle/code/mo-black"
 //        "c:/users/kyle/code/mo-fabric",
@@ -59,8 +59,8 @@
         "mo_http.http.default_headers": {
             "Referer": "https://github.com/klahnakoski/mo-deploy"
         },
-        "mo_threads.multiprocess.DEBUG_COMMAND": true,
-        "mo_threads.multiprocess.DEBUG_PROCESS": true
+        "mo_threads.multiprocess.DEBUG_COMMAND": false,
+        "mo_threads.multiprocess.DEBUG_PROCESS": false
     },
     "debug": {"trace": true}
 }
