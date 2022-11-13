@@ -12,23 +12,31 @@ import os
 import platform
 import subprocess
 from _thread import allocate_lock
+from dataclasses import dataclass
+from time import time as unix_now
 
 from mo_dots import set_default, Null, Data, is_null
-from mo_files import os_path
 from mo_future import text
 from mo_logs import Log, strings
 from mo_logs.exceptions import Except
+from mo_times import Timer
+
+from mo_threads import threads
 from mo_threads.lock import Lock
 from mo_threads.queues import Queue
 from mo_threads.signals import Signal
 from mo_threads.threads import THREAD_STOP, Thread
-from mo_times import Timer
 
 DEBUG_PROCESS = False
 DEBUG_COMMAND = False
 
 next_process_id_locker = allocate_lock()
 next_process_id = 0
+
+
+@dataclass
+class Status:
+    last_read: float
 
 
 class Process(object):
@@ -41,6 +49,7 @@ class Process(object):
         debug=False,
         shell=False,
         bufsize=-1,
+        timeout=2.0,
         parent_thread=None,
     ):
         """
@@ -57,6 +66,8 @@ class Process(object):
         :param debug: true to be verbose about stdin/stdout
         :param shell: true to run as command line
         :param bufsize: if you want to screw stuff up
+        :param timeout: how long to wait for process stdout/stderr before we consider it dead
+                        ensure your process emits lines to stay alive
         """
         global next_process_id_locker, next_process_id
         with next_process_id_locker:
@@ -75,6 +86,7 @@ class Process(object):
         self.stderr = Queue(
             "stderr for process " + strings.quote(name), silent=not self.debug
         )
+        self.timeout = timeout
 
         try:
             if is_null(cwd):
@@ -96,6 +108,8 @@ class Process(object):
             )
 
             self.child_locker = Lock()
+            self.stdout_status = Status(unix_now())
+            self.stderr_status = Status(unix_now())
             self.children = [
                 Thread.run(
                     self.name + " stdin",
@@ -111,6 +125,7 @@ class Process(object):
                     "stdout",
                     service.stdout,
                     self.stdout,
+                    self.stdout_status,
                     please_stop=self.service_stopped,
                     parent_thread=self,
                 ),
@@ -120,6 +135,7 @@ class Process(object):
                     "stderr",
                     service.stderr,
                     self.stderr,
+                    self.stderr_status,
                     please_stop=self.service_stopped,
                     parent_thread=self,
                 ),
@@ -130,8 +146,6 @@ class Process(object):
                     parent_thread=self,
                 ),
             ]
-        except NotADirectoryError as problem:
-            print(cwd)
         except Exception as cause:
             Log.error("Can not call", cause)
 
@@ -199,7 +213,21 @@ class Process(object):
 
     def _monitor(self, please_stop):
         with Timer(self.name, verbose=self.debug):
-            self.service.wait()
+            while not please_stop:
+                now = unix_now()
+                last_out = max(self.stderr_status.last_read, self.stderr_status.last_read)
+                timeout = last_out + self.timeout - now
+                if now < 0:
+                    self._kill()
+                    if self.debug:
+                        Log.warning("{{name}} took too long to respond", name=self.name)
+                    break
+                try:
+                    self.service.wait(timeout=timeout)
+                    break
+                except Exception:
+                    # TIMEOUT, CHECK FOR LIVELINESS
+                    pass
             please_stop.go()
             self.stdin.close()
         self.debug and Log.note(
@@ -208,19 +236,23 @@ class Process(object):
             returncode=self.service.returncode,
         )
 
-    def _reader(self, name, pipe, receive, please_stop):
+    def _reader(self, name, pipe, receive, status: Status, please_stop):
+        """
+        MOVE LINES fROM pipe TO receive QUEUE
+        """
+        """
+        MOVE LINES fROM pipe TO receive QUEUE
+        """
         self.debug and Log.note(
             "{{process}} ({{name}} is reading)", name=name, process=self.name
         )
-        acc = []
         try:
             while not please_stop and self.service.returncode is None:
-                b = pipe.read(1)
-                if b and b != b"\n":
-                    acc.append(b)
-                    continue
-
-                line = b"".join(acc).decode("utf8").rstrip()
+                line = pipe.readline()
+                status.last_read = unix_now()
+                if not line:
+                    break
+                line = line.decode("utf8").rstrip()
                 self.debug and Log.note(
                     "{{process}} ({{name}}): {{line}}",
                     name=name,
@@ -228,9 +260,6 @@ class Process(object):
                     line=line,
                 )
                 receive.add(line)
-                acc = []
-                if not b:
-                    break
         except Exception as cause:
             Log.warning("premature read failure", cause=cause)
         finally:
@@ -380,7 +409,7 @@ class Command(object):
 
         if not self.process:
             self.process = Process(
-                "command shell", [cmd()], os_path(cwd), env, debug, shell, bufsize
+                "command shell", [cmd()], os_path(cwd), env, debug, shell, bufsize, parent_thread=threads.MAIN_THREAD
             )
             self.process.stdin.add(set_prompt())
             self.process.stdin.add(LAST_RETURN_CODE)
@@ -500,3 +529,12 @@ def _wait_for_start(source, destination):
             destination.add(THREAD_STOP)
             return
         destination.add(value)
+
+
+def os_path(path):
+    """
+    :return: OS-specific path
+    """
+    if os.sep == "/":
+        return path
+    return str(path).lstrip("/")

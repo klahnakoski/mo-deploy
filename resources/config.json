@@ -51,9 +51,10 @@
     "deploy": [
 //          "mo-testing",  "mo-threads", "jx-python", "mo-logs"
 //        "mo-parsing", "mo-json-config", "mo-threads",
-        "mo-sql-parsing",
+//        "mo-sql-parsing",
 //        "mo-json-config",
-//        "mo-black"
+//        "mo-black",
+        "jx-mysql"
     ],
     "constants": {
         "mo_http.http.default_headers": {

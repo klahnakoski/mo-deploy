@@ -10,6 +10,8 @@ from __future__ import division, unicode_literals
 
 from collections import Mapping
 
+import yaml
+
 from mo_deploy.utils import Requirement, parse_req
 from mo_dots import coalesce, listwrap, to_data
 from mo_dots.lists import last
@@ -18,7 +20,7 @@ from mo_future import is_binary, is_text, sort_using_key, text, first
 from mo_http import http
 from mo_json import value2json, json2value
 from mo_logs import Except, Log, strings
-from mo_math import randoms
+from mo_math import randoms, is_number
 from mo_threads import Thread, Till
 from mo_threads.multiprocess import Command
 from mo_times import Timer
@@ -65,6 +67,7 @@ class Module(object):
         master_rev = self.master_revision()
         try:
             self.update_setup_json_file(next_version)
+            self.synch_travis_file()
             self.gen_setup_py_file()
             self.local(
                 [
@@ -81,13 +84,13 @@ class Module(object):
             # RUN TESTS IN PARALLEL
             while True:
                 try:
-                    # test_threads = [
-                    #     Thread.run("test " + v, self.run_tests, v)
-                    #     for v in self.test_versions
-                    # ]
-                    # Thread.join_all(test_threads)
-                    for v in self.test_versions:
-                        self.run_tests(v, None)
+                    test_threads = [
+                        Thread.run("test " + v, self.run_tests, v)
+                        for v in self.test_versions
+                    ]
+                    Thread.join_all(test_threads)
+                    # for v in self.test_versions:
+                    #     self.run_tests(v, None)
                     break
                 except Exception as cause:
                     Log.warning("Tests did not pass", cause=cause)
@@ -102,8 +105,7 @@ class Module(object):
             cause = Except.wrap(cause)
             self.local([self.git, "checkout", "-f", master_rev])
             self.local(
-                [self.git, "tag", "--delete", text(next_version)],
-                raise_on_error=False,
+                [self.git, "tag", "--delete", text(next_version)], raise_on_error=False,
             )
             self.local(
                 [self.git, "branch", "-D", self.master_branch], raise_on_error=False
@@ -116,6 +118,32 @@ class Module(object):
     def setup(self):
         self.local([self.git, "checkout", self.dev_branch])
         self.local([self.git, "merge", self.master_branch])
+
+    def synch_travis_file(self):
+        travis_file = self.directory / ".travis.yml"
+        if travis_file.exists:
+            Log.note("synch .travis.yml file")
+
+            setup = (self.directory / SETUPTOOLS).read_json(leaves=False)
+            tested_versions = [
+                c.split("::")[-1].strip()
+                for c in setup.classifiers
+                if c.startswith("Programming Language :: Python :: ")
+            ]
+            content = yaml.safe_load(travis_file.read())
+            content["python"] = list(map(
+                lambda v: float(v) if is_number(v) else v,
+                map(
+                    str,
+                    sorted(
+                        Version(str(v) if str(v) != "3.7" else "3.7.8")  # ONLY 3.7.8 IS STABLE ON TRAVIS
+                        for v in tested_versions
+                    ),
+                ),
+            ))
+            travis_file.write(yaml.dump(
+                content, default_flow_style=False, sort_keys=False
+            ))
 
     def gen_setup_py_file(self):
         setup_file = self.directory / "setup.py"
@@ -189,7 +217,9 @@ class Module(object):
             Log.note("twine upload of {{dir}}", dir=self.directory.abspath)
             # python3 -m twine upload --repository-url https://test.pypi.org/legacy/ dist/*
             process, stdout, stderr = self.local(
-                [self.twine, "upload", "--verbose", "dist/*"], raise_on_error=False, show_all=True
+                [self.twine, "upload", "--verbose", "dist/*"],
+                raise_on_error=False,
+                show_all=True,
             )
             if "Upload failed (400): File already exists." in stderr:
                 Log.error("Version exists. Not uploaded")
@@ -212,7 +242,10 @@ class Module(object):
 
         give_up_on_pypi = Till(seconds=90)
         while not give_up_on_pypi:
-            Log.note("WAIT FOR PYPI TO SHOW NEW VERSION {{version}}", version=self.graph.get_next_version(self.name))
+            Log.note(
+                "WAIT FOR PYPI TO SHOW NEW VERSION {{version}}",
+                version=self.graph.get_next_version(self.name),
+            )
             Till(seconds=10).wait()
             """
             (.venv) C:\\Users\\kyle\\code\\mo-sql-parsing>pip install mo-collections==
@@ -271,7 +304,7 @@ class Module(object):
 
         # PACKAGES
         expected_packages = [
-            dir_name.replace("/", ".")
+            dir_name
             for f in self.directory.leaves
             if f.name == "__init__" and f.extension == "py"
             for dir_name in [f.parent.abspath[len(self.directory.abspath) + 1 :]]
@@ -307,10 +340,7 @@ class Module(object):
 
         # REQUIRES
         reqs = self.get_next_requirements([
-            r
-            for line in setup.install_requires
-            for r in [parse_req(line)]
-            if r
+            r for line in setup.install_requires for r in [parse_req(line)] if r
         ])
         setup.install_requires = [
             r.name + r.type + text(r.version) if r.version else r.name
@@ -396,8 +426,11 @@ class Module(object):
                 "virtualenv",
             ])
             self.local(
-                [self.python[python_version], "-m", "virtualenv", temp / ".venv"], cwd=temp
+                [self.python[python_version], "-m", "virtualenv", temp / ".venv"],
+                cwd=temp,
             )
+            Log.note("upgrade setuptools")
+            self.local([pip, "install", "-U", "setuptools"])
 
             # CLEAN INSTALL FIRST, TO TEST FOR VERSION COMPATIBILITY
             try:
@@ -427,13 +460,18 @@ class Module(object):
             # INSTALL TEST RESOURCES
             Log.note("install testing requirements")
             if (self.directory / "tests" / "requirements.txt").exists:
-                self.local([pip, "install", "--no-deps", "-r", "tests/requirements.txt"])
+                self.local([
+                    pip,
+                    "install",
+                    "--no-deps",
+                    "-r",
+                    "tests/requirements.txt",
+                ])
                 self.local([pip, "install", "-r", "tests/requirements.txt"])
 
             # INSTALL SELF AGAIN TO ENSURE CORRECT VERSIONS ARE USED (EVEN IF CONFLICT WITH TEST RESOURCES)
             Log.note("install self")
             self.local([pip, "install", "."])
-
 
             with Timer("run tests"):
                 process, stdout, stderr = self.local(
@@ -446,7 +484,11 @@ class Module(object):
                     Log.error(
                         "Expecting unittest results (at least two lines of output)"
                     )
-                num_tests = int(strings.between(first(line for line in reversed(stderr) if line.startswith("Ran ")), "Ran ", " test"))
+                num_tests = int(strings.between(
+                    first(line for line in reversed(stderr) if line.startswith("Ran ")),
+                    "Ran ",
+                    " test",
+                ))
                 if num_tests == 0:
                     Log.error(
                         "Expecting to run some tests: {{error}}", error=stderr[-2]
@@ -516,9 +558,7 @@ class Module(object):
             r & lookup_old_requires.get(r.name)
             if r.name not in self.graph.graph
             else Requirement(
-                name=r.name,
-                type="==",
-                version=self.graph.get_version(r.name),
+                name=r.name, type="==", version=self.graph.get_version(r.name),
             )
             for line in req.read_lines()
             if line
@@ -578,7 +618,7 @@ class Module(object):
                     yield {"name": n, "version": Version(v)}
                 elif ">" in r:
                     n, v = r.split(">")
-                    v= Version(v)
+                    v = Version(v)
                     v = min(vv for vv in self.graph.modules[n].all_versions if vv > v)
                     yield {"name": n, "version": v}
                 elif "<" in r:

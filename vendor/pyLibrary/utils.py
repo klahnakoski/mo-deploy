@@ -68,9 +68,12 @@ class Version(object):
                         continue
                     return s > o
                 else:
-                    if int(s) == o:
-                        continue
-                    return int(s) >= o
+                    try:
+                        if int(s) == o:
+                            continue
+                        return int(s) >= o
+                    except Exception:
+                        return s >= str(o)
             else:
                 if isinstance(o, str):
                     if s == int(o):

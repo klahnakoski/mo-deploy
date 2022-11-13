@@ -2,3 +2,4 @@ twine
 toposort
 requests
 keyring
+pyyaml
