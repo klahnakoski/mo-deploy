@@ -38,7 +38,7 @@ DEBUG = False
 
 def get_file(file):
     file = File(file)
-    return get("file://" + file.abspath)
+    return get("file://" + file.abs_path)
 
 
 def get(url):

@@ -90,7 +90,7 @@ class ModuleGraph(object):
         )
         # PREFETCH SOME MODULE STATUS
         def pre_fetch_state(d, please_stop):
-            d.can_upgrade()
+            d.please_upgrade()
             d.last_deploy()
 
         with Timer("get modules' status"):
@@ -101,25 +101,24 @@ class ModuleGraph(object):
             # for d in deploy_dependencies:
             #     pre_fetch_state(d, None)
 
-
         # DO ANY ON THE deploy REQUIRE UPGRADE?
-        not_needed = set(
+        no_upgrade_needed = set(
             m.name
             for m in deploy_dependencies
-            if m.name in deploy and not (m.can_upgrade() or m.last_deploy() < m.get_version()[0])
+            if m.name in deploy and not (m.please_upgrade() or m.last_deploy() < m.get_version()[0])
         )
 
         # WHAT MODULES NEED UPDATE? (INCLUDE deploy TO ALLOW UPGRADE LOGIC TO FIND TRANSITIVE UPGRADES)
         self.todo = self._sorted(set(
             m.name
             for m in deploy_dependencies
-            if m.can_upgrade() or m.last_deploy() < m.get_version()[0]
+            if m.please_upgrade() or m.last_deploy() < m.get_version()[0]
         ) | set(deploy))
 
         # ASSIGN next_version IN CASE IT IS REQUIRED
         # IF b DEPENDS ON a THEN version(b)>=version(a)
         # next_version(a) > version(a)
-        max_minor_version = max(int(v.minor) for v in versions.values() if v != None)
+        max_minor_version = max(int(v.minor) for n, v in versions.items() if n not in no_upgrade_needed and v != None)
         self.next_minor_version = max_minor_version + 1
 
         version_bump = {t.name: t for t in self.todo}
@@ -129,6 +128,8 @@ class ModuleGraph(object):
             proposed_version = Version(
                 File(m.directory / SETUPTOOLS).read_json().version
             )
+            if m.name in no_upgrade_needed:
+                continue
             self._next_version[m.name] = Version((
                 max(m.version.major, proposed_version.major),
                 self.next_minor_version,
@@ -201,6 +202,8 @@ class ModuleGraph(object):
         while True:
             try:
                 for t in self.todo:
+                    if t.name in no_upgrade_needed:
+                        continue
                     scan(t, self._next_version[t.name], None, True)
             except Exception as cause:
                 cause = Except.wrap(cause)
@@ -224,7 +227,7 @@ class ModuleGraph(object):
                 "No change, but requires version bump {{modules}}", modules=additional,
             )
 
-        self.todo = self._sorted(self._next_version.keys() - not_needed)
+        self.todo = self._sorted(self._next_version.keys() - no_upgrade_needed)
 
         if self._next_version:
             Log.alert("Updating: {{modules}}", modules=[(m.name, self._next_version[m.name]) for m in self.todo])

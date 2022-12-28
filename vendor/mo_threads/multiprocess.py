@@ -327,8 +327,8 @@ PROMPT = "READY_FOR_MORE"
 
 
 def cmd_escape(value):
-    if hasattr(value, "abspath"):  # File
-        value = os_path(value.abspath)
+    if hasattr(value, "abs_path"):  # File
+        value = os_path(value.abs_path)
     quoted = strings.quote(value)
 
     if " " not in quoted and quoted == '"' + value + '"':

@@ -17,6 +17,7 @@
         "c:/users/kyle/code/mo-imports",
         "c:/users/kyle/code/mo-future",
         "c:/users/kyle/code/mo-dots",
+        "c:/users/kyle/code/mo-streams",
         "c:/users/kyle/code/mo-kwargs",
         "c:/users/kyle/code/mo-logs",
         "c:/users/kyle/code/mo-sql",
@@ -40,8 +41,9 @@
 
         "c:/users/kyle/code/mo-parsing",
         "c:/users/kyle/code/mo-sql-parsing",
+        "c:/users/kyle/code/terraform-parser",
 
-        "c:/users/kyle/code/mo-black"
+//        "c:/users/kyle/code/mo-black"
 //        "c:/users/kyle/code/mo-fabric",
 //        "c:/users/kyle/code/mo-hg",
 //        "c:/users/kyle/code/measure-noise",
@@ -51,10 +53,13 @@
     "deploy": [
 //          "mo-testing",  "mo-threads", "jx-python", "mo-logs"
 //        "mo-parsing", "mo-json-config", "mo-threads",
+//        "mo-testing"
 //        "mo-sql-parsing",
-//        "mo-json-config",
 //        "mo-black",
-        "jx-mysql"
+//        "jx-mysql",
+//        "mo-streams"
+//        "pyLibrary"
+        "terraform-parser", "mo-streams"
     ],
     "constants": {
         "mo_http.http.default_headers": {

@@ -9,6 +9,6 @@ from mo_threads.multiprocess import Command
 code = File("C:/Users/kyle/code")
 
 for d in code.decendants:
-    Log.note("{{file}}", file=d.abspath)
+    Log.note("{{file}}", file=d.abs_path)
     if d.name == "" and d.extension == "svn":
         Command("relocate", ["svn", "relocate", "https://klahnakoski-39477/", "https://kyle-win10/"], cwd=d.parent)

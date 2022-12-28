@@ -106,6 +106,9 @@ class Version(object):
     def __str__(self):
         return "".join(p + str(v) for p, v in zip(self.prefix, self.version))
 
+    def __repr__(self):
+        return f"Version({self}"
+
     def __hash__(self):
         return self.__str__().__hash__()
 
@@ -128,6 +131,7 @@ class Version(object):
     @property
     def mini(self):
         return self.version[2]
+
 
 
 def triple(version):

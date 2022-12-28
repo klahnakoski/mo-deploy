@@ -27,6 +27,8 @@ from mo_times import Timer
 from pyLibrary.meta import cache
 from pyLibrary.utils import Version
 
+NO_VERSION = Version((-1,))
+FIRST_VERSION = Version("0.0.0")
 SETUPTOOLS = "setuptools.json"  # CONFIGURATION EXPECTED TO MAKE A setup.py FILE
 
 
@@ -173,7 +175,7 @@ class Module(object):
             )
         except Exception as e:
             Log.warning("could not get version from {{url}}", url=url, cause=e)
-            return None
+            return NO_VERSION
 
     def scrub_pypi_residue(self):
         (self.directory / "README.txt").delete()
@@ -195,7 +197,7 @@ class Module(object):
         #    Password for '__token__' in 'https://upload.pypi.org/legacy/':
         #
 
-        Log.note("Update PyPi for {{dir}}", dir=self.directory.abspath)
+        Log.note("Update PyPi for {{dir}}", dir=self.directory.abs_path)
         try:
             self.scrub_pypi_residue()
 
@@ -214,7 +216,7 @@ class Module(object):
                 [self.python["latest"], "setup.py", "sdist"], raise_on_error=True
             )
 
-            Log.note("twine upload of {{dir}}", dir=self.directory.abspath)
+            Log.note("twine upload of {{dir}}", dir=self.directory.abs_path)
             # python3 -m twine upload --repository-url https://test.pypi.org/legacy/ dist/*
             process, stdout, stderr = self.local(
                 [self.twine, "upload", "--verbose", "dist/*"],
@@ -304,10 +306,10 @@ class Module(object):
 
         # PACKAGES
         expected_packages = [
-            dir_name
+            dir_name.replace("/", ".")
             for f in self.directory.leaves
             if f.name == "__init__" and f.extension == "py"
-            for dir_name in [f.parent.abspath[len(self.directory.abspath) + 1 :]]
+            for dir_name in [f.parent.abs_path[len(self.directory.abs_path) + 1 :]]
             if dir_name
             and not dir_name.startswith("tests/")
             and not dir_name.startswith(".")
@@ -354,7 +356,7 @@ class Module(object):
         self.local([self.git, "checkout", self.dev_branch])
 
         for d in self.directory.find(r"\.svn"):
-            svn_dir = os_path(d.parent.abspath)
+            svn_dir = os_path(d.parent.abs_path)
             if any(d in svn_dir for d in listwrap(Module.ignore_svn)):
                 Log.note("Ignoring svn directory {{dir}}", dir=svn_dir)
                 continue
@@ -364,7 +366,7 @@ class Module(object):
             self.local([self.svn, "commit", svn_dir, "-m", "auto"])
 
     def update_dev(self, message):
-        Log.note("Update git dev branch for {{dir}}", dir=self.directory.abspath)
+        Log.note("Update git dev branch for {{dir}}", dir=self.directory.abs_path)
         self.scrub_pypi_residue()
         self.local([self.git, "add", "-A"])
         process, stdout, stderr = self.local(
@@ -387,7 +389,7 @@ class Module(object):
             )
 
     def update_master_locally(self, version):
-        Log.note("Update git master branch for {{dir}}", dir=self.directory.abspath)
+        Log.note("Update git master branch for {{dir}}", dir=self.directory.abs_path)
         try:
             v = text(version)
             self.local([self.git, "checkout", self.master_branch])
@@ -406,6 +408,9 @@ class Module(object):
             )
 
     def run_tests(self, python_version, please_stop):
+        if self.name == "pyLibrary":
+            return
+
         # SETUP NEW ENVIRONMENT
         with TempDirectory() as temp:
             # python -m pip install virtualenv  # venv is buggy on Windows
@@ -417,7 +422,7 @@ class Module(object):
             python = temp / ".venv" / "Scripts" / "python.exe"
             pip = temp / ".venv" / "Scripts" / "pip.exe"
 
-            Log.note("install virtualenv into {{dir}}", dir=temp.abspath)
+            Log.note("install virtualenv into {{dir}}", dir=temp.abs_path)
             self.local([
                 self.python[python_version],
                 "-m",
@@ -467,7 +472,7 @@ class Module(object):
                     "-r",
                     "tests/requirements.txt",
                 ])
-                self.local([pip, "install", "-r", "tests/requirements.txt"])
+                self.local([pip, "install", "-r", "tests/requirements.txt"], debug=True)
 
             # INSTALL SELF AGAIN TO ENSURE CORRECT VERSIONS ARE USED (EVEN IF CONFLICT WITH TEST RESOURCES)
             Log.note("install self")
@@ -475,7 +480,7 @@ class Module(object):
 
             with Timer("run tests"):
                 process, stdout, stderr = self.local(
-                    [python, "-m", "unittest", "discover", "tests",],
+                    [python, "-m", "unittest", "discover", "tests"],
                     env={"PYTHONPATH": "."},
                     debug=True,
                 )
@@ -528,7 +533,7 @@ class Module(object):
             Log.error(
                 "can not execute {{args}} in dir={{dir|quote}}",
                 args=args,
-                dir=os_path(self.directory.abspath),
+                dir=os_path(self.directory.abs_path),
                 cause=e,
             )
 
@@ -578,13 +583,19 @@ class Module(object):
 
         if all_versions:
             version = max(all_versions)
-            p, stdout, stderr = self.local([self.git, "show", text(version)])
+            try:
+                p, stdout, stderr = self.local([self.git, "show", text(version)])
+            except Exception:
+                # HAPPENS WHEN NO VERSIONS ON NEW MODULE EXIST
+                stdout = []
             for line in stdout:
                 if line.startswith("commit "):
                     revision = line.split("commit")[1].strip()
                     return version, revision
 
         version = self.last_deploy()
+        if version is NO_VERSION:
+            version = FIRST_VERSION
         revision = self.master_revision()
         return version, revision
 
@@ -601,7 +612,7 @@ class Module(object):
         p, stdout, stderr = self.local(
             [self.git, "show", f"{version}:{SETUPTOOLS}"], raise_on_error=False
         )
-        if any("invalid object name" in line for line in stderr):
+        if p.returncode or any("invalid object name" in line for line in stderr):
             requirements = (
                 File(self.directory / SETUPTOOLS).read_json().install_requires
             )
@@ -643,7 +654,7 @@ class Module(object):
                 return revision
 
     @cache()
-    def can_upgrade(self):
+    def please_upgrade(self):
         ignored_files = ["setup.py", "setuptools.json"]
 
         # get current version, hash
@@ -677,6 +688,9 @@ class Module(object):
             self.local([self.git, "branch", "-D", branch_name])
 
         return curr_revision != revision
+
+    def __str__(self):
+        return self.name
 
 
 def value2python(value):

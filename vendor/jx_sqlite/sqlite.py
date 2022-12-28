@@ -124,7 +124,7 @@ class Sqlite(DB):
         else:
             file = File(filename)
             file.parent.create()
-            self.filename = file.abspath
+            self.filename = file.abs_path
             if known_databases.get(self.filename):
                 Log.error(
                     "Not allowed to create more than one Sqlite instance for {{file}}",
@@ -275,7 +275,7 @@ class Sqlite(DB):
         full_path = (
             File
             .new_instance(library_loc, "vendor/sqlite/libsqlitefunctions.so")
-            .abspath
+            .abs_path
         )
         try:
             trace = get_stacktrace(0)[0]
@@ -289,7 +289,7 @@ class Sqlite(DB):
                         trace["file"], "../../vendor/sqlite/libsqlitefunctions"
                     )
 
-                full_path = file.abspath
+                full_path = file.abs_path
                 self.db.enable_load_extension(True)
                 self.db.execute(text(
                     SQL_SELECT + "load_extension" + sql_iso(quote_value(full_path))
