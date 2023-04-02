@@ -6,12 +6,12 @@
 #
 # Author: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
-from __future__ import division, unicode_literals
-
 from mo_deploy.module import Module
 from mo_deploy.module_graph import ModuleGraph
 from mo_dots import listwrap, from_data
+from mo_files import File
 from mo_logs import Log, constants, startup
+from mo_threads import Command
 from pyLibrary.utils import Version
 
 
@@ -30,11 +30,14 @@ def main():
                 python.latest = path
                 latest = version
 
+        # INSTALL PACKAING TOOLS
+        Command("packaging tools", [python.latest, "-m", "pip", "install", "wheel"], cwd=File("."), debug=True).join(raise_on_error=True)
+
         # SET Module VARIABLES (IN general)
         for k, v in settings.general.items():
             setattr(Module, k, from_data(v))
 
-        graph = ModuleGraph(listwrap(settings.managed), settings.deploy)
+        graph = ModuleGraph(listwrap(settings.managed), settings.deploy, latest)
 
         # python -m pip install --upgrade setuptools wheel
         # python -m pip install --user --upgrade twine

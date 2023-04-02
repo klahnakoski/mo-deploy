@@ -6,17 +6,15 @@
 #
 # Author: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
-from __future__ import division, unicode_literals
-
 from copy import copy
 
 from toposort import toposort
 
 import mo_math
-from mo_deploy.module import Module, SETUPTOOLS
+from mo_deploy.deploy_module import DeployModule
+from mo_deploy.module import Module
 from mo_deploy.utils import Requirement, TODAY
 from mo_dots import listwrap
-from mo_files import File
 from mo_http import http
 from mo_logs import Log
 from mo_logs.exceptions import Except
@@ -28,28 +26,25 @@ from pyLibrary.utils import Version
 
 
 class ModuleGraph(object):
-    def __init__(self, module_directories, deploy):
+    def __init__(self, module_directories, deploy, latest_python_version):
         graph = self.graph = {}
         versions = self.versions = {}
+        self.latest_python_version = latest_python_version
 
         self.modules = {
             m.name: m for d in module_directories for m in [Module(d, self)]
         }
+        self.modules["__deploy__"] = DeployModule(self, deploy)
 
         graph_lock = Lock()
 
         def info(m, please_stop):
             module_name = m.name
+
             # FIND DEPENDENCIES FOR EACH MODULE
             graph[module_name] = set()
             last_version = m.get_version()[0]
-            versions[module_name] = max(
-                Version(
-                    (m.directory / SETUPTOOLS).read_json(leaves=False).version,
-                    prefix="v",
-                ),
-                last_version,
-            )
+            versions[module_name] = max(m.get_setup_version(), last_version)
 
             for req in m.get_current_requirements([
                 Requirement(k, "==", v) for k, v in versions.items()
@@ -113,7 +108,7 @@ class ModuleGraph(object):
             m.name
             for m in deploy_dependencies
             if m.please_upgrade() or m.last_deploy() < m.get_version()[0]
-        ) | set(deploy))
+        ) | {"__deploy__"})
 
         # ASSIGN next_version IN CASE IT IS REQUIRED
         # IF b DEPENDS ON a THEN version(b)>=version(a)
@@ -125,9 +120,7 @@ class ModuleGraph(object):
         self._next_version = {}
         for m in self.todo:
             # THE SETUPTOOLS FILE MAY SUGGEST A HIGHER MAJOR VERSION
-            proposed_version = Version(
-                File(m.directory / SETUPTOOLS).read_json().version
-            )
+            proposed_version = m.get_setup_version()
             if m.name in no_upgrade_needed:
                 continue
             self._next_version[m.name] = Version((
@@ -202,8 +195,6 @@ class ModuleGraph(object):
         while True:
             try:
                 for t in self.todo:
-                    if t.name in no_upgrade_needed:
-                        continue
                     scan(t, self._next_version[t.name], None, True)
             except Exception as cause:
                 cause = Except.wrap(cause)
@@ -227,7 +218,8 @@ class ModuleGraph(object):
                 "No change, but requires version bump {{modules}}", modules=additional,
             )
 
-        self.todo = self._sorted(self._next_version.keys() - no_upgrade_needed)
+        no_upgrade_needed.add("__deploy__")
+        self.todo = self._sorted(self._next_version.keys() - no_upgrade_needed | additional)
 
         if self._next_version:
             Log.alert("Updating: {{modules}}", modules=[(m.name, self._next_version[m.name]) for m in self.todo])

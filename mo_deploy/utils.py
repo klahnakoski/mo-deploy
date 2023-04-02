@@ -6,8 +6,6 @@
 #
 # Author: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
-from __future__ import division, unicode_literals
-
 import operator
 import re
 

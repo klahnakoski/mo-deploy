@@ -3,6 +3,7 @@
         "git": "C:\\Program Files\\Git\\cmd\\git.exe",
         "svn": "C:\\Program Files\\VisualSVN Server\\bin\\svn.exe",
         "python": {
+            "3..10":"C:\\Python310\\python.exe",
             "3..9":"C:\\Python39\\python.exe",
             "3..8":"C:\\Python38\\python.exe",
             "3..7":"C:\\Python37\\python.exe",
@@ -43,7 +44,7 @@
         "c:/users/kyle/code/mo-sql-parsing",
         "c:/users/kyle/code/terraform-parser",
 
-//        "c:/users/kyle/code/mo-black"
+        "c:/users/kyle/code/mo-black"
 //        "c:/users/kyle/code/mo-fabric",
 //        "c:/users/kyle/code/mo-hg",
 //        "c:/users/kyle/code/measure-noise",
@@ -51,15 +52,14 @@
 //        "c:/users/kyle/code/mo-parquet"
     ],
     "deploy": [
-//          "mo-testing",  "mo-threads", "jx-python", "mo-logs"
+//        "mo-testing", "mo-threads", "jx-python", "mo-logs"
 //        "mo-parsing", "mo-json-config", "mo-threads",
-//        "mo-testing"
 //        "mo-sql-parsing",
+        "mo-streams", "mo-json-config", "mo-threads"
 //        "mo-black",
 //        "jx-mysql",
-//        "mo-streams"
 //        "pyLibrary"
-        "terraform-parser", "mo-streams"
+//        "terraform-parser", "mo-streams"
     ],
     "constants": {
         "mo_http.http.default_headers": {
