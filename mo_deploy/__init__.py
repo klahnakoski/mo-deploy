@@ -25,10 +25,13 @@ def main():
         python = settings.general.python
         latest = Version("0")
         for version, path in python.items():
-            Log.note("upgrade setuptools")
+            # THIS TAKES A LONG TIME, SO WE DO NOT BOTHER JOINING
             Command(
-                "upgrade setuptools", [path, "-m", "pip", "install", "-U", "setuptools"], cwd=File("."), debug=True
-            ).join(raise_on_error=True)
+                "upgrade setuptools",
+                [path, "-m", "pip", "install", "--upgrade", "setuptools"],
+                cwd=File("."),
+                debug=True
+            )
 
             version = Version(version)
             if version > latest:
