@@ -25,13 +25,20 @@ def main():
         python = settings.general.python
         latest = Version("0")
         for version, path in python.items():
+            Log.note("upgrade setuptools")
+            Command(
+                "upgrade setuptools", [path, "-m", "pip", "install", "-U", "setuptools"], cwd=File("."), debug=True
+            ).join(raise_on_error=True)
+
             version = Version(version)
             if version > latest:
                 python.latest = path
                 latest = version
 
-        # INSTALL PACKAING TOOLS
-        Command("packaging tools", [python.latest, "-m", "pip", "install", "wheel"], cwd=File("."), debug=True).join(raise_on_error=True)
+        # INSTALL PACKAGING TOOLS
+        Command(
+            "packaging tools", [python.latest, "-m", "pip", "install", "wheel"], cwd=File("."), debug=True
+        ).join(raise_on_error=True)
 
         # SET Module VARIABLES (IN general)
         for k, v in settings.general.items():

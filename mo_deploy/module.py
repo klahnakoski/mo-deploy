@@ -443,8 +443,6 @@ class Module(object):
                 [self.python[python_version], "-m", "virtualenv", temp / ".venv"],
                 cwd=temp,
             )
-            Log.note("upgrade setuptools")
-            self.local([pip, "install", "-U", "setuptools"])
 
             # CLEAN INSTALL FIRST, TO TEST FOR VERSION COMPATIBILITY
             try:
@@ -701,7 +699,15 @@ class Module(object):
                 curr_revision = self.current_revision()
             else:
                 curr_revision = revision
-            self.local([self.git, "checkout", "-f", self.dev_branch])
+
+            while True:
+                try:
+                    self.local([self.git, "checkout", "-f", self.dev_branch])
+                    break
+                except Exception as cause:
+                    if "unable to write new index file" not in cause:
+                        raise
+                    Log.warning("retrying checkout", cause=cause)
         except Exception as e:
             Log.warning("problem determining upgrade status", cause=e)
             self.local([self.git, "reset", "--hard", "HEAD"])
