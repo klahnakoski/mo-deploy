@@ -177,6 +177,9 @@ class Module(object):
         (self.directory / "dist").delete()
         (self.directory / (self.directory.name.replace("-", "_") + ".egg-info")).delete()
 
+        for d in self.directory.children:
+            if d.name.startswith("build_v"):
+                d.delete()
         for f in self.directory.leaves:
             if f.extension == "pyc":
                 f.delete()
@@ -402,16 +405,23 @@ class Module(object):
             )
 
             # CLEAN INSTALL FIRST, TO TEST FOR VERSION COMPATIBILITY
-            try:
-                Log.note("install self")
-                self.gen_setup_py_file()
-                p, stdout, stderr = self.local([pip, "install", "."], debug=True)
-                if any("which is incompatible" in line for line in stderr):
-                    Log.error("Seems we have an incompatibility problem")
-                if any("conflicting dependencies" in line for line in stderr):
-                    Log.error("Seems we have a conflicting dependencies problem")
-            except Exception as cause:
-                Log.error("Problem with install", cause=cause)
+            while True:
+                try:
+                    Log.note("install self")
+                    self.gen_setup_py_file()
+                    with TempDirectory() as build_dir:
+                        p, stdout, stderr = self.local([pip, "install", self.directory.abs_path], cwd=build_dir, debug=True)
+                        if any("which is incompatible" in line for line in stderr):
+                            Log.error("Seems we have an incompatibility problem")
+                        if any("conflicting dependencies" in line for line in stderr):
+                            Log.error("Seems we have a conflicting dependencies problem")
+                        break
+                except Exception as cause:
+                    if any("because the GET request got Content-Type" in e for e in cause.cause.params.stderr):
+                        # Happens occasionally, so retry
+                        Log.warning("Problem with install", cause=cause.cause.params.stderr)
+                    else:
+                        Log.error("Problem with install", cause=cause)
 
             # RUN THE SMOKE TEST
             Log.note("run tests/smoke_test.py")
@@ -436,8 +446,8 @@ class Module(object):
 
             # INSTALL SELF AGAIN TO ENSURE CORRECT VERSIONS ARE USED (EVEN IF CONFLICT WITH TEST RESOURCES)
             Log.note("install self")
-            self.local([pip, "install", "."])
-
+            with TempDirectory() as build_dir:
+                self.local([pip, "install", self.directory.abs_path], cwd=build_dir, debug=True)
             with Timer("run tests"):
                 process, stdout, stderr = self.local(
                     [python, "-m", "unittest", "discover", "tests"], env={"PYTHONPATH": "."}, debug=True,
@@ -472,12 +482,12 @@ class Module(object):
                     stack_depth=1,
                 )
             return p, stdout, stderr
-        except Exception as e:
+        except Exception as cause:
             Log.error(
                 "can not execute {{args}} in dir={{dir|quote}}",
                 args=args,
                 dir=os_path(self.directory.abs_path),
-                cause=e,
+                cause=cause,
             )
 
     def get_current_requirements(self, current_requires):
