@@ -13,13 +13,13 @@ import yaml
 from mo_deploy.utils import Requirement, parse_req
 from mo_dots import coalesce, listwrap, to_data, exists, from_data
 from mo_dots.lists import last
-from mo_files import File, TempDirectory, URL, os_path
+from mo_files import File, TempDirectory, URL
 from mo_future import is_binary, is_text, sort_using_key, text, first
 from mo_http import http
 from mo_json import value2json, json2value
 from mo_logs import Except, Log, strings
 from mo_math import randoms
-from mo_threads import Thread, Till
+from mo_threads import Thread, Till, Lock
 from mo_threads.multiprocess import Command
 from mo_times import Timer
 from pyLibrary.meta import cache
@@ -50,9 +50,10 @@ class Module(object):
             self.master_branch = "master"
             self.dev_branch = "dev"
             self.directory = File(info)
-            self.name = self.directory.name.replace("_", "-")
+            self.name = self.directory.stem.replace("_", "-")
         self.graph = graph
         self.all_versions = []
+        self.install_locker = Lock("only one pip installer at a time")
 
     def deploy(self):
         self.setup()
@@ -175,11 +176,8 @@ class Module(object):
         (self.directory / "README.txt").delete()
         (self.directory / "build").delete()
         (self.directory / "dist").delete()
-        (self.directory / (self.directory.name.replace("-", "_") + ".egg-info")).delete()
+        (self.directory / (self.directory.stem.replace("-", "_") + ".egg-info")).delete()
 
-        for d in self.directory.children:
-            if d.name.startswith("build_v"):
-                d.delete()
         for f in self.directory.leaves:
             if f.extension == "pyc":
                 f.delete()
@@ -295,7 +293,7 @@ class Module(object):
         expected_packages = [
             dir_name.replace("/", ".")
             for f in self.directory.leaves
-            if f.name == "__init__" and f.extension == "py"
+            if f.stem == "__init__" and f.extension == "py"
             for dir_name in [f.parent.abs_path[len(self.directory.abs_path) + 1 :]]
             if dir_name
             and not dir_name.startswith("tests/")
@@ -337,7 +335,7 @@ class Module(object):
         self.local([self.git, "checkout", self.dev_branch])
 
         for d in self.directory.find(r"\.svn"):
-            svn_dir = os_path(d.parent.abs_path)
+            svn_dir = d.parent.os_path
             if any(d in svn_dir for d in listwrap(Module.ignore_svn)):
                 Log.note("Ignoring svn directory {{dir}}", dir=svn_dir)
                 continue
@@ -409,13 +407,13 @@ class Module(object):
                 try:
                     Log.note("install self")
                     self.gen_setup_py_file()
-                    with TempDirectory() as build_dir:
-                        p, stdout, stderr = self.local([pip, "install", self.directory.abs_path], cwd=build_dir, debug=True)
-                        if any("which is incompatible" in line for line in stderr):
-                            Log.error("Seems we have an incompatibility problem")
-                        if any("conflicting dependencies" in line for line in stderr):
-                            Log.error("Seems we have a conflicting dependencies problem")
-                        break
+                    with self.install_locker:
+                        p, stdout, stderr = self.local([pip, "install", "."], debug=True)
+                    if any("which is incompatible" in line for line in stderr):
+                        Log.error("Seems we have an incompatibility problem")
+                    if any("conflicting dependencies" in line for line in stderr):
+                        Log.error("Seems we have a conflicting dependencies problem")
+                    break
                 except Exception as cause:
                     if any("because the GET request got Content-Type" in e for e in cause.cause.params.stderr):
                         # Happens occasionally, so retry
@@ -446,8 +444,8 @@ class Module(object):
 
             # INSTALL SELF AGAIN TO ENSURE CORRECT VERSIONS ARE USED (EVEN IF CONFLICT WITH TEST RESOURCES)
             Log.note("install self")
-            with TempDirectory() as build_dir:
-                self.local([pip, "install", self.directory.abs_path], cwd=build_dir, debug=True)
+            with self.install_locker:
+                self.local([pip, "install", "."])
             with Timer("run tests"):
                 process, stdout, stderr = self.local(
                     [python, "-m", "unittest", "discover", "tests"], env={"PYTHONPATH": "."}, debug=True,
@@ -486,7 +484,7 @@ class Module(object):
             Log.error(
                 "can not execute {{args}} in dir={{dir|quote}}",
                 args=args,
-                dir=os_path(self.directory.abs_path),
+                dir=self.directory.os_path,
                 cause=cause,
             )
 
