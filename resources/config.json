@@ -52,9 +52,9 @@
 //        "c:/users/kyle/code/mo-parquet"
     ],
     "deploy": [
-//        "mo-testing", "mo-threads", "jx-python", "mo-logs"
+        "mo-testing", "mo-threads", "jx-python", "mo-logs"
 //        "mo-parsing", "mo-json-config", "mo-threads",
-        "mo-sql-parsing",
+//        "mo-sql-parsing",
 //          "mo-files", "mo-times", "mo-kwargs", "mo-json-config", "mo-threads"
 //          "jx-python"
 //        "mo-streams", "mo-json-config", "mo-threads"

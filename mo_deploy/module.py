@@ -166,7 +166,9 @@ class Module(object):
     def last_deploy(self):
         url = URL("https://pypi.org/pypi") / self.name / "json"
         try:
-            return max(Version(k, prefix="v") for k in http.get_json(url).releases.keys())
+            version = max(Version(k, prefix="v") for k in http.get_json(url).releases.keys())
+            Log.note("last deployed version is {{version}}", version=version)
+            return version
         except Exception as e:
             Log.warning("could not get version from {{url}}", url=url, cause=e)
             return NO_VERSION
@@ -372,7 +374,7 @@ class Module(object):
             self.local([self.git, "push", "origin", v])
         except Exception as e:
             Log.error(
-                "git origin master not updated for {{dir}}", dir=self.directory.name, cause=e,
+                "git origin master not updated for {{dir}}", dir=self.directory.stem, cause=e,
             )
 
     def run_tests(self, python_version, please_stop):
@@ -530,6 +532,7 @@ class Module(object):
 
         if all_versions:
             version = max(all_versions)
+            Log.note("Found {{version}} in git tags", version=version)
             try:
                 p, stdout, stderr = self.local([self.git, "show", text(version)])
             except Exception:
@@ -623,9 +626,10 @@ class Module(object):
                     self.local([self.git, "checkout", "-f", self.dev_branch])
                     break
                 except Exception as cause:
-                    if "unable to write new index file" not in cause:
-                        raise
-                    Log.warning("retrying checkout", cause=cause)
+                    if any(r in cause for r in ["unable to write symref",  "unable to write new index file"]):
+                        Log.warning("retrying checkout", cause=cause)
+                        continue
+                    raise
         except Exception as e:
             Log.warning("problem determining upgrade status", cause=e)
             self.local([self.git, "reset", "--hard", "HEAD"])
