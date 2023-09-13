@@ -3,6 +3,7 @@
         "git": "C:\\Program Files\\Git\\cmd\\git.exe",
         "svn": "C:\\Program Files\\VisualSVN Server\\bin\\svn.exe",
         "python": {
+            "3..11":"C:\\Python311\\python.exe",
             "3..10":"C:\\Python310\\python.exe",
             "3..9":"C:\\Python39\\python.exe",
             "3..8":"C:\\Python38\\python.exe",
@@ -52,11 +53,14 @@
 //        "c:/users/kyle/code/mo-parquet"
     ],
     "deploy": [
-        "mo-testing", "mo-threads", "jx-python", "mo-logs"
+//        "mo-testing", "mo-threads", "jx-python", "mo-logs"
 //        "mo-parsing", "mo-json-config", "mo-threads",
+//        "mo-testing", "mo-threads", "mo-files", "mo-streams"  // mo-sql-parsing testing
+        "mo-times", "mo-logs", "mo-json-config", "mo-threads", "mo-streams",
 //        "mo-sql-parsing",
 //          "mo-files", "mo-times", "mo-kwargs", "mo-json-config", "mo-threads"
 //          "jx-python"
+
 //        "mo-streams", "mo-json-config", "mo-threads"
 //        "mo-black",
 //        "jx-mysql",

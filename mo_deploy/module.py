@@ -126,13 +126,14 @@ class Module(object):
             ]
             content = to_data(yaml.safe_load(travis_file.read()))
             python = content.python = []
+            content.jobs.include = []
             for v in tested_versions:
                 if v == "3.7":
                     python += ["3.7.8"]  # ONLY 3.7.8 IS STABLE ON TRAVIS
                 elif v in ("3.8", "3.9"):
                     python += [str(v)]
                 elif v == "3.10":
-                    content.jobs.include = [{
+                    content.jobs.include += [{
                         "name": "Python 3.10",
                         "dist": "jammy",  # Ubuntu 22.04
                         "python": "3.10",
@@ -140,6 +141,17 @@ class Module(object):
                             # https://discourse.charmhub.io/t/cannot-install-dependencies-modulenotfounderror-no-module-named-setuptools-command-build/7374
                             "pip install wheel==0.37.1",
                             "pip install setuptools==45.2.0",
+                        ],
+                    }]
+                elif v == "3.11":
+                    content.jobs.include += [{
+                        "name": "Python 3.11",
+                        "dist": "jammy",  # Ubuntu 22.04
+                        "python": "3.11",
+                        "before_install": [
+                            "pip install --upgrade pip",
+                            "pip install wheel==0.41.2",
+                            "pip install setuptools==65.5.0",
                         ],
                     }]
                 else:
@@ -284,6 +296,12 @@ class Module(object):
                     Log.error(
                         'Expecting {{version}} in "general.python" settings', version=version,
                     )
+        if "3.11" not in self.test_versions:
+            # ask user if they want to add 3.11
+            value = input("Add 3.11 python to supported versions list? (y/N): ")
+            if value in "yY":
+                self.test_versions.append("3.11")
+                setup.classifiers.append("Programming Language :: Python :: 3.11")
         if not self.test_versions:
             Log.error("expecting language classifier, like 'Programming Language :: Python :: 3.7'")
 

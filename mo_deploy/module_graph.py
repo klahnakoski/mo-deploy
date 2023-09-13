@@ -44,7 +44,7 @@ class ModuleGraph(object):
             # FIND DEPENDENCIES FOR EACH MODULE
             graph[module_name] = set()
             last_version = m.get_version()[0]
-            curr_versions[module_name] = max(m.get_setup_version(), last_version)
+            curr_versions[module_name] = last_version
 
             for req in m.get_current_requirements([
                 Requirement(k, "==", v) for k, v in curr_versions.items()
