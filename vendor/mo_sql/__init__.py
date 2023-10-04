@@ -6,7 +6,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 
-from __future__ import absolute_import, division, unicode_literals
+
 
 from mo_future import is_text, first
 from mo_logs import Log
@@ -69,7 +69,10 @@ class SQL(object):
         return self.sql
 
     def __str__(self):
-        return "".join(self)
+        return self.sql
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.sql})"
 
 
 class TextSQL(SQL):
@@ -156,6 +159,9 @@ class ConcatSQL(SQL):
         for c in self.concat:
             yield from c
 
+    def __str__(self):
+        return "".join(self)
+
 
 SQL_SPACE = SQL(" ")
 SQL_CR = SQL("\n")
@@ -213,6 +219,7 @@ SQL_SET = ConcatSQL(SQL_CR, SQL("SET"), SQL_CR)
 
 SQL_ALTER_TABLE = SQL("ALTER TABLE ")
 SQL_ADD_COLUMN = SQL(" ADD COLUMN ")
+SQL_DROP_COLUMN = SQL(" DROP COLUMN ")
 SQL_RENAME_COLUMN = SQL(" RENAME COLUMN ")
 SQL_RENAME_TO = SQL(" RENAME TO ")
 

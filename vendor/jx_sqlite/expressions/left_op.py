@@ -7,7 +7,7 @@
 #
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
-from __future__ import absolute_import, division, unicode_literals
+
 
 from jx_base.expressions import LeftOp as LeftOp_, ONE, LengthOp, WhenOp, BasicSubstringOp, ZERO, MaxOp, MinOp, \
     SqlSubstrOp, EqOp

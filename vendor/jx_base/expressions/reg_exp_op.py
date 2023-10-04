@@ -8,22 +8,21 @@
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
 
-from __future__ import absolute_import, division, unicode_literals
 
 from jx_base.expressions.expression import Expression
 from jx_base.expressions.literal import is_literal
 from jx_base.expressions.or_op import OrOp
 from jx_base.expressions.variable import Variable
 from jx_base.language import is_op
-from mo_json.types import T_BOOLEAN
+from mo_json.types import JX_BOOLEAN
 
 
 class RegExpOp(Expression):
     has_simple_form = True
-    data_type = T_BOOLEAN
+    _data_type = JX_BOOLEAN
 
     def __init__(self, *terms):
-        Expression.__init__(self, terms)
+        Expression.__init__(self, *terms)
         self.expr, self.pattern = terms
 
     def __data__(self):
@@ -32,11 +31,16 @@ class RegExpOp(Expression):
 
         return {"regexp": [self.expr.__data__(), self.pattern.__data__()]}
 
+    def __eq__(self, other):
+        if not is_op(other, RegExpOp):
+            return False
+        return self.expr == other.expr and self.pattern == other.pattern
+
     def vars(self):
         return self.expr.vars() | self.pattern.vars()
 
     def map(self, map_):
-        return RegExpOp([self.expr.map(map_), self.pattern.map(map_)])
+        return RegExpOp(self.expr.map(map_), self.pattern.map(map_))
 
     def missing(self, lang):
-        return OrOp([self.expr.missing(lang), self.pattern.missing(lang)])
+        return OrOp(self.expr.missing(lang), self.pattern.missing(lang))

@@ -7,21 +7,18 @@
 #
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
-from __future__ import absolute_import, division, unicode_literals
+
 
 from jx_base.expressions import (
     SubOp as SubOp_,
     TRUE,
-    OrOp,
-    MissingOp,
-    AndOp,
     IsNumberOp,
     NULL,
 )
 from jx_sqlite.expressions._utils import _binaryop_to_sql, check, SQLang
-from jx_sqlite.expressions.sql_script import SQLScript
-from mo_json import T_NUMBER
-from jx_sqlite.sqlite import ConcatSQL, sql_iso, SQL_SUB, sql_call
+from jx_sqlite.expressions.sql_script import SqlScript
+from mo_json import JX_NUMBER
+from mo_sqlite import ConcatSQL, sql_iso, SQL_SUB, sql_call
 
 
 class SubOp(SubOp_):
@@ -44,12 +41,8 @@ class SubOp(SubOp_):
         if d.miss is not TRUE:
             sql = sql_call("COALESCE", sql, d.frum)
 
-        return SQLScript(
-            data_type=T_NUMBER,
+        return SqlScript(
+            data_type=JX_NUMBER,
             expr=sql,
             frum=self,
-            miss=AndOp([
-                OrOp([MissingOp(self.lhs), MissingOp(self.rhs)]),
-                MissingOp(self.default)
-            ]), schema=schema
         )

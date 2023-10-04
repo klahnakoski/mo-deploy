@@ -6,23 +6,26 @@
 # You can obtain one at http:# mozilla.org/MPL/2.0/.
 #
 
-from __future__ import absolute_import, division, unicode_literals
 
-from jx_sqlite.expressions._utils import SQLang
 
-from jx_base import Facts, Column
+from jx_base import jx_expression
+from jx_base.expressions import Expression, Variable, is_literal, GetOp, SqlScript
+from jx_base.meta_columns import Column
 from jx_base.models.container import Container as _Container
+from jx_base.models.facts import Facts
+from jx_sqlite.expressions.sql_select_all_from_op import SqlSelectAllFromOp
+from jx_sqlite.expressions._utils import SQLang
 from jx_sqlite.models.namespace import Namespace
-from jx_sqlite.query_table import QueryTable
 from jx_sqlite.models.snowflake import Snowflake
-from jx_sqlite.sqlite import (
+from mo_sqlite import (
     SQL_SELECT,
     SQL_FROM,
     SQL_UPDATE,
     SQL_SET,
     ConcatSQL,
 )
-from jx_sqlite.sqlite import (
+from jx_base.language import is_op
+from mo_sqlite import (
     Sqlite,
     quote_column,
     sql_eq,
@@ -33,12 +36,14 @@ from jx_sqlite.sqlite import (
 from jx_sqlite.utils import UID, GUID, DIGITS_TABLE, ABOUT_TABLE
 from mo_dots import concat_field, set_default
 from mo_future import first, NEXT
+from mo_imports import expect
 from mo_json import STRING
 from mo_kwargs import override
 from mo_logs import Log
 from mo_threads.lock import locked
 from mo_times import Date
 
+SetOpTable, QueryTable = expect("SetOpTable", "QueryTable")
 _config = None
 
 
@@ -108,6 +113,38 @@ class Container(_Container):
                 t.execute(sql_create(DIGITS_TABLE, {"value": "INTEGER"}))
                 t.execute(sql_insert(DIGITS_TABLE, [{"value": i} for i in range(10)]))
 
+    def query(self, query):
+        if isinstance(query, SqlScript):
+            return self.db.query(query.sql)
+
+        if isinstance(query, Expression):
+            if is_op(query, GetOp) and isinstance(query.frum, Variable) and query.frum.var=="row" and len(query.offsets)==1 and is_literal(query.offsets[0]):
+                return SqlSelectAllFromOp(self.get_table(query.offsets[0].value))
+            if isinstance(query, Variable):
+                # SELECT IS A LAMBDA
+                # FROM <some_snowflake> IS REALLY A TREE (UNION) OF JOINED TABLES, EACH WITH SCHEMA
+                # CAN THE "JOINED TABLES" BE INCOMPLETE BY MENTIONING THE RELATION?  TO AVOID THE CYCLES
+
+                # AN "SEGMENT" IS A TABLE, PLUS ALL THE (UNREALIZED) RELATIONS
+
+
+                # BUILD FULL SELECT CLAUSE
+                # SELECT_ALL_FROM OPERATOR
+                # RETURN SCHEMA - MAYBE ONLY THE TOP LEVEL?
+                # TREE OF LEFT JOINS USING SELECT_ALL -> IF USING RELATIONS, THEN CYCLES
+                # MAP FROM COLUMN PATH TO COLUMN INDEX -> WHAT HAPPENS WHEN A CYCLE?
+                return SqlSelectAllFromOp(self.get_table(query.var))
+
+            Log.error(f"not supported yet (add jx_base.<op>.apply() function to {query.name}")
+
+        # ASSUME Data MEANT AS QUERY
+        normalized_query = jx_expression(query, SQLang)
+        if normalized_query.lang is not SQLang:
+            Log.error(f"cannot execute query in {normalized_query.lang}")
+        command = normalized_query.apply(self)
+        output = self.db.query(command)
+        return output
+
     def create_or_replace_facts(self, fact_name, uid=UID):
         """
         MAKE NEW TABLE, REPLACE OLD ONE IF EXISTS
@@ -154,12 +191,12 @@ class Container(_Container):
 
             self.namespace.columns._snowflakes[fact_name] = ["."]
             self.namespace.columns.add(Column(
-                name="_id",
+                name=concat_field(fact_name, "_id"),
                 es_column="_id",
                 es_index=fact_name,
                 es_type=json_type_to_sqlite_type[STRING],
-                jx_type=STRING,
-                nested_path=["."],
+                json_type=STRING,
+                nested_path=[fact_name],
                 multi=1,
                 last_updated=Date.now(),
             ))
@@ -169,11 +206,16 @@ class Container(_Container):
 
             with self.db.transaction() as t:
                 t.execute(command)
+            self.namespace.columns.primary_keys[fact_name]=UID,
 
         return QueryTable(fact_name, self)
 
     def get_table(self, table_name):
-        return QueryTable(table_name, self)
+        snowflake = Snowflake(table_name, self.namespace)
+        return snowflake.get_table([table_name])
+
+    def get_snowflake(self, table_name):
+        return Snowflake(table_name, self.namespace)
 
     @property
     def language(self):

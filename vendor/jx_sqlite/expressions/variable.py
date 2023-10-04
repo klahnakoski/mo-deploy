@@ -7,26 +7,34 @@
 #
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
-from __future__ import absolute_import, division, unicode_literals
 
-from jx_base.expressions import NULL, Variable as Variable_, SelectOp, FALSE
-from jx_sqlite.expressions._utils import check, SQLScript
-from jx_sqlite.sqlite import quote_column
+
+from jx_base.expressions import NULL, Variable as Variable_, SelectOp
+from jx_sqlite.expressions._utils import check, SqlScript
+from mo_sqlite import quote_column
 from jx_sqlite.utils import GUID
 from mo_dots import concat_field
-from mo_json.types import to_json_type, T_INTEGER
+from mo_json.types import to_jx_type, JX_INTEGER
 
 
 class Variable(Variable_):
     @check
     def to_sql(self, schema):
+        if not schema:
+            output = SqlScript(
+                data_type=self.type,
+                expr=quote_column(self.var),
+                frum=self,
+                schema=self.type,
+            )
+            return output
+
         var_name = self.var
         if var_name == GUID:
-            output = SQLScript(
-                data_type=T_INTEGER,
+            output = SqlScript(
+                data_type=JX_INTEGER,
                 expr=quote_column(GUID),
                 frum=self,
-                miss=FALSE,
                 schema=schema,
             )
             return output
@@ -35,7 +43,7 @@ class Variable(Variable_):
         for rel_name, col in cols:
             select.append({
                 "name": concat_field(var_name, rel_name),
-                "value": Variable(col.es_column, to_json_type(col.jx_type)),
+                "value": Variable(col.es_column, to_jx_type(col.json_type)),
                 "aggregate": NULL
             })
 
@@ -43,8 +51,8 @@ class Variable(Variable_):
             return NULL.to_sql(schema)
         elif len(select) == 1:
             rel_name0, col0 = cols[0]
-            type0 = concat_field(col0.name, rel_name0) + to_json_type(col0.jx_type)
-            output = SQLScript(
+            type0 = concat_field(col0.name, rel_name0) + to_jx_type(col0.json_type)
+            output = SqlScript(
                 data_type=type0,
                 expr=quote_column(col0.es_column),
                 frum=Variable(self.var, type0),

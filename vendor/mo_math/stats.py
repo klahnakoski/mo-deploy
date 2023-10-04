@@ -8,7 +8,7 @@
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
 
-from __future__ import absolute_import, division, unicode_literals
+
 
 import math
 import sys
@@ -16,11 +16,14 @@ from math import sqrt
 
 from mo_dots import Data, Null, coalesce
 from mo_future import text, zip_longest
-from mo_logs import Log
+from mo_imports import delay_import
+
 from mo_math import OR, almost_equal
 from mo_math.vendor import strangman
 
-DEBUG = True
+logger = delay_import("mo_logs.Log")
+
+DEBUG = False
 DEBUG_STRANGMAN = False
 EPSILON = 0.000000001
 ABS_EPSILON = sys.float_info.min * 2  # *2 FOR SAFETY
@@ -38,7 +41,7 @@ def chisquare(f_obs, f_exp):
     try:
         py_result = strangman.stats.chisquare(f_obs, f_exp)
     except Exception as e:
-        Log.error("problem with call", e)
+        logger.error("problem with call", e)
 
     if DEBUG_STRANGMAN:
         from mo_testing.fuzzytestcase import assertAlmostEqualValue
@@ -47,7 +50,7 @@ def chisquare(f_obs, f_exp):
         if not assertAlmostEqualValue(
             sp_result[0], py_result[0], digits=9
         ) and assertAlmostEqualValue(sp_result[1], py_result[1], delta=1e-8):
-            Log.error("problem with stats lib")
+            logger.error("problem with stats lib")
 
     return py_result
 
@@ -85,7 +88,7 @@ def Stats2ZeroMoment(stats):
             assertAlmostEqualValue(v.kurtosis, stats.kurtosis, places=10)
         except Exception as e:
             v = ZeroMoment2Stats(m)
-            Log.error("programmer error")
+            logger.error("programmer error")
         globals()["DEBUG"] = True
     return m
 
@@ -131,7 +134,7 @@ def ZeroMoment2Stats(z_moment):
             for i in range(5):
                 assertAlmostEqualValue(v.S[i], Z[i], places=7)
         except Exception as e:
-            Log.error(
+            logger.error(
                 "Conversion failed.  Programmer error:\nfrom={{from|indent}},\nresult stats={{stats|indent}},\nexpected param={{expected|indent}}",
                 {"from": Z},
                 stats=stats,
@@ -245,7 +248,6 @@ class ZeroMoment(object):
                 )
             )
 
-
     @property
     def tuple(self):
         # RETURN AS ORDERED TUPLE
@@ -300,7 +302,8 @@ def median(values, simple=True, mean_weight=0.0):
     """
 
     if OR(v == None for v in values):
-        Log.error("median is not ready to handle None")
+
+        logger.error("median is not ready to handle None")
 
     try:
         if not values:
@@ -344,7 +347,7 @@ def median(values, simple=True, mean_weight=0.0):
             else:
                 return (_median - 0.5) + (middle + 0.5 - start_index) / num_middle
     except Exception as e:
-        Log.error("problem with median of {{values}}", values=values, cause=e)
+        logger.error("problem with median of {{values}}", values=values, cause=e)
 
 
 def percentile(values, percent):

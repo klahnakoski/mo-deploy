@@ -7,11 +7,10 @@
 #
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
-from __future__ import absolute_import, division, unicode_literals
+
 
 from jx_base.expressions import RightOp as RightOp_, ZERO
 from jx_base.expressions._utils import simplified
-from jx_sqlite.expressions import SQLang
 from jx_sqlite.expressions.basic_substring_op import BasicSubstringOp
 from jx_sqlite.expressions.length_op import LengthOp
 from jx_sqlite.expressions.max_op import MaxOp
@@ -22,8 +21,8 @@ from jx_sqlite.expressions.sub_op import SubOp
 class RightOp(RightOp_):
     @simplified
     def partial_eval(self, lang):
-        value = self.value.partial_eval(SQLang)
-        length = self.length.partial_eval(SQLang)
+        value = self.value.partial_eval(lang)
+        length = self.length.partial_eval(lang)
         max_length = LengthOp(value)
 
         return BasicSubstringOp([

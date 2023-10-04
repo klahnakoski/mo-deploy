@@ -7,13 +7,13 @@
 #
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
-from __future__ import absolute_import, division, unicode_literals
+
 
 from jx_base.expressions import ToTextOp as ToTextOp_, SelectOp, CoalesceOp
 from jx_base.language import is_op
 from jx_sqlite.expressions._utils import check, SQLang
-from jx_sqlite.expressions.sql_script import SQLScript
-from jx_sqlite.sqlite import (
+from jx_sqlite.expressions.sql_script import SqlScript
+from mo_sqlite import (
     SQL_CASE,
     SQL_ELSE,
     SQL_END,
@@ -22,8 +22,8 @@ from jx_sqlite.sqlite import (
     sql_iso,
     ConcatSQL, sql_cast,
 )
-from jx_sqlite.sqlite import quote_value, sql_call
-from mo_json import T_TEXT, T_BOOLEAN, T_NUMBER_TYPES, split_field, base_type
+from mo_sqlite import quote_value, sql_call
+from mo_json import JX_TEXT, JX_BOOLEAN, JX_NUMBER_TYPES, split_field, base_type
 
 
 class ToTextOp(ToTextOp_):
@@ -31,11 +31,11 @@ class ToTextOp(ToTextOp_):
     def to_sql(self, schema):
         expr = self.term.to_sql(schema)
         type = base_type(expr.type)
-        if type == T_TEXT:
+        if type == JX_TEXT:
             return expr
-        elif type == T_BOOLEAN:
-            return SQLScript(
-                data_type=T_TEXT,
+        elif type == JX_BOOLEAN:
+            return SqlScript(
+                data_type=JX_TEXT,
                 expr=ConcatSQL(
                     SQL_CASE,
                     SQL_WHEN,
@@ -49,9 +49,9 @@ class ToTextOp(ToTextOp_):
                 frum=self,
                 schema=schema,
             )
-        elif type in T_NUMBER_TYPES:
-            return SQLScript(
-                data_type=T_TEXT,
+        elif type in JX_NUMBER_TYPES:
+            return SqlScript(
+                data_type=JX_TEXT,
                 expr=sql_call(
                     "RTRIM",
                     sql_call(
@@ -71,8 +71,8 @@ class ToTextOp(ToTextOp_):
                 if len(split_field(t['name'])) == 1
             ]).partial_eval(SQLang).to_sql(schema)
         else:
-            return SQLScript(
-                data_type=T_TEXT,
+            return SqlScript(
+                data_type=JX_TEXT,
                 expr=sql_cast(expr.frum, "TEXT"),
                 frum=self,
                 schema=schema,

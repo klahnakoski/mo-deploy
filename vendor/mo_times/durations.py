@@ -7,7 +7,7 @@
 #
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
-from __future__ import absolute_import, division, unicode_literals
+
 
 import datetime
 import re
@@ -228,6 +228,9 @@ class Duration(object):
 
     def __float__(self):
         return self.seconds
+
+    def __int__(self):
+        return int(self.seconds)
 
     def __str__(self):
         return str(self.__unicode__())

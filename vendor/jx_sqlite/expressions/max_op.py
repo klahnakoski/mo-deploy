@@ -7,13 +7,13 @@
 #
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
-from __future__ import absolute_import, division, unicode_literals
+
 
 from jx_base.expressions import MaxOp as MaxOp_, MissingOp
 from jx_sqlite.expressions._utils import SQLang, check
-from jx_sqlite.expressions.sql_script import SQLScript
-from jx_sqlite.sqlite import sql_call
-from mo_json import T_NUMBER
+from jx_sqlite.expressions.sql_script import SqlScript
+from mo_sqlite import sql_call
+from mo_json import JX_NUMBER
 
 
 class MaxOp(MaxOp_):
@@ -21,6 +21,6 @@ class MaxOp(MaxOp_):
     def to_sql(self, schema):
         miss = MissingOp(self).partial_eval(SQLang)
         expr = sql_call("MAX", *(t.to_sql(schema) for t in self.terms))
-        return SQLScript(
-            data_type=T_NUMBER, miss=miss, expr=expr, frum=self, schema=schema
+        return SqlScript(
+            data_type=JX_NUMBER, expr=expr, frum=self, schema=schema
         )

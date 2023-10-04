@@ -7,17 +7,17 @@
 #
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
-from __future__ import absolute_import, division, unicode_literals
+
 
 from jx_base.expressions import ExistsOp as ExistsOp_, FALSE
-from jx_sqlite.expressions._utils import check, SQLang, SQLScript
-from mo_json import T_BOOLEAN
+from jx_sqlite.expressions._utils import check, SQLang, SqlScript
+from mo_json import JX_BOOLEAN
 
 
 class ExistsOp(ExistsOp_):
     @check
     def to_sql(self, schema):
         sql = self.expr.partial_eval(SQLang).to_sql(schema)
-        return SQLScript(
-            data_type=T_BOOLEAN, expr=sql, frum=self, miss=FALSE, schema=schema
+        return SqlScript(
+            data_type=JX_BOOLEAN, expr=sql, frum=self, schema=schema
         )

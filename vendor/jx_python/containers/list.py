@@ -7,41 +7,41 @@
 #
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
-from __future__ import absolute_import, division, unicode_literals
+
 
 import itertools
 
-from jx_base import Column
-from jx_base.models.container import Container
-from jx_base.expressions import TRUE, Variable
-from jx_base.language import is_expression, is_op
-from jx_base.meta_columns import get_schema_from_list
-from jx_base.models.namespace import Namespace
-from jx_base.models.schema import Schema
-from jx_base.models.table import Table
-from jx_python.convert import list2cube, list2table
-from jx_python.expressions import jx_expression_to_function
-from jx_python.lists.aggs import is_aggs, list_aggs
 from mo_collections import UniqueIndex
 from mo_dots import (
     Data,
     Null,
     is_data,
     is_list,
-    listwrap,
     from_data,
-    unwraplist,
     to_data,
     coalesce,
     dict_to_data,
 )
 from mo_future import first, sort_using_key
-from mo_imports import export, expect
-from mo_json import ARRAY
+from mo_imports import export, expect, delay_import
 from mo_logs import Log
 from mo_threads import Lock
 
+from jx_base.expressions import TRUE, Variable
+from jx_base.language import is_expression, is_op
+from jx_base.meta_columns import get_schema_from_list
+from jx_base.models.container import Container
+from jx_base.models.namespace import Namespace
+from jx_base.models.schema import Schema
+from jx_base.models.table import Table
+from jx_base.utils import delist, enlist
+from jx_python.convert import list2cube, list2table
+from jx_python.expressions import jx_expression_to_function
+from jx_python.lists.aggs import is_aggs, list_aggs
+from mo_json import ARRAY
+
 jx = expect("jx")
+Column = delay_import("jx_base.Column")
 
 
 class ListContainer(Container, Namespace, Table):
@@ -117,12 +117,7 @@ class ListContainer(Container, Namespace, Table):
                     meta={"format": "cube"},
                     edges=[{
                         "name": "rownum",
-                        "domain": {
-                            "type": "rownum",
-                            "min": 0,
-                            "max": len(rows),
-                            "interval": 1,
-                        },
+                        "domain": {"type": "rownum", "min": 0, "max": len(rows), "interval": 1},
                     }],
                 )
             else:
@@ -137,7 +132,7 @@ class ListContainer(Container, Namespace, Table):
         THE where CLAUSE IS A JSON EXPRESSION FILTER
         """
         command = to_data(command)
-        command_clear = listwrap(command["clear"])
+        command_clear = enlist(command["clear"])
         command_set = command.set.items()
         command_where = jx.get(command.where)
 
@@ -162,11 +157,7 @@ class ListContainer(Container, Namespace, Table):
         return ListContainer("from " + self.name, filter(temp, self.data), self.schema)
 
     def sort(self, sort):
-        return ListContainer(
-            "sorted " + self.name,
-            jx.sort(self.data, sort, already_normalized=True),
-            self.schema,
-        )
+        return ListContainer("sorted " + self.name, jx.sort(self.data, sort, already_normalized=True), self.schema,)
 
     def get(self, select):
         """
@@ -179,13 +170,9 @@ class ListContainer(Container, Namespace, Table):
             return [d[select] for d in self.data]
 
     def select(self, select):
-        selects = listwrap(select)
+        selects = enlist(select)
 
-        if (
-            len(selects) == 1
-            and is_op(selects[0].value, Variable)
-            and selects[0].value.var == "."
-        ):
+        if len(selects) == 1 and is_op(selects[0].value, Variable) and selects[0].value.var == ".":
             new_schema = self.schema
             if selects[0].name == ".":
                 return self
@@ -195,18 +182,14 @@ class ListContainer(Container, Namespace, Table):
         if is_list(select):
             if all(is_op(s.value, Variable) and s.name == s.value.var for s in select):
                 names = set(s.value.var for s in select)
-                new_schema = Schema(
-                    ".", [c for c in self.schema.columns if c.name in names]
-                )
+                new_schema = Schema(".", [c for c in self.schema.columns if c.name in names])
 
-            push_and_pull = [
-                (s.name, jx_expression_to_function(s.value)) for s in selects
-            ]
+            push_and_pull = [(s.name, jx_expression_to_function(s.value)) for s in selects]
 
             def selector(d):
                 output = Data()
                 for n, p in push_and_pull:
-                    output[n] = unwraplist(p(to_data(d)))
+                    output[n] = delist(p(to_data(d)))
                 return from_data(output)
 
             new_data = list(map(selector, self.data))
@@ -214,14 +197,10 @@ class ListContainer(Container, Namespace, Table):
             select_value = jx_expression_to_function(select.value)
             new_data = list(map(select_value, self.data))
             if is_op(select.value, Variable):
-                column = dict(
-                    **first(
-                        c for c in self.schema.columns if c.name == select.value.var
-                    )
-                )
+                column = dict(**first(c for c in self.schema.columns if c.name == select.value.var))
                 column.update({
                     "name": ".",
-                    "jx_type": ARRAY,
+                    "json_type": ARRAY,
                     "es_type": "nested",
                     "multi": 1001,
                     "cardinality": 1,
@@ -247,7 +226,7 @@ class ListContainer(Container, Namespace, Table):
 
     def groupby(self, keys, contiguous=False):
         try:
-            keys = listwrap(keys)
+            keys = enlist(keys)
             get_key = jx_expression_to_function(keys)
             if not contiguous:
                 data = sort_using_key(self.data, key=get_key)
@@ -275,9 +254,7 @@ class ListContainer(Container, Namespace, Table):
         else:
             return dict_to_data({
                 "meta": {"format": "list"},
-                "data": [
-                    {k: unwraplist(v) for k, v in row.items()} for row in self.data
-                ],
+                "data": [{k: delist(v) for k, v in row.items()} for row in self.data],
             })
 
     def get_columns(self, table_name=None):
@@ -322,11 +299,7 @@ def _exec(code):
         Log.error("Could not execute {{code|quote}}", code=code, cause=e)
 
 
-DUAL = ListContainer(
-    name="dual",
-    data=[{}],
-    schema=Schema(table_name="dual", columns=UniqueIndex(keys=("name",))),
-)
+DUAL = ListContainer(name="dual", data=[{}], schema=Schema(table_name="dual", columns=UniqueIndex(keys=("name",))),)
 
 
 export("jx_base.models.container", ListContainer)

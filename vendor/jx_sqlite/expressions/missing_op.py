@@ -7,15 +7,14 @@
 #
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
-from __future__ import absolute_import, division, unicode_literals
 
-from jx_base.expressions import MissingOp as MissingOp_, FALSE
+
+from jx_base.expressions import MissingOp as MissingOp_
 from jx_base.language import is_op
 from jx_sqlite.expressions._utils import SQLang, check
-from jx_sqlite.expressions.sql_script import SQLScript
-from jx_sqlite.sqlite import ConcatSQL, SQL_IS_NULL, SQL_NOT, sql_call, SQL_OR, sql_iso, SQL_EQ, TextSQL, \
-    SQL_EMPTY_STRING
-from mo_json.types import T_BOOLEAN, T_TEXT
+from jx_sqlite.expressions.sql_script import SqlScript
+from mo_sqlite import ConcatSQL, SQL_IS_NULL, SQL_OR, sql_iso, SQL_EQ, SQL_EMPTY_STRING
+from mo_json.types import JX_BOOLEAN, JX_TEXT
 
 
 class MissingOp(MissingOp_):
@@ -24,10 +23,9 @@ class MissingOp(MissingOp_):
         sql = self.expr.partial_eval(SQLang).to_sql(schema)
 
         if is_op(sql.miss, MissingOp):
-            if sql.type == T_TEXT:
-                return SQLScript(
-                    data_type=T_BOOLEAN,
-                    miss=FALSE,
+            if sql.type == JX_TEXT:
+                return SqlScript(
+                    data_type=JX_BOOLEAN,
                     expr=sql_iso(
                         sql.frum,
                         SQL_IS_NULL,
@@ -40,13 +38,12 @@ class MissingOp(MissingOp_):
                     schema=schema
                 )
 
-            return SQLScript(
-                data_type=T_BOOLEAN,
-                miss=FALSE,
-                expr=ConcatSQL(sql.frum, SQL_IS_NULL),
+            return SqlScript(
+                data_type=JX_BOOLEAN,
+                expr=ConcatSQL(sql.sql_expr, SQL_IS_NULL),
                 frum=self,
                 schema=schema
             )
 
         expr = sql.miss.to_sql(schema)
-        return SQLScript(data_type=T_BOOLEAN, miss=FALSE, expr=expr, frum=sql.miss, schema=schema)
+        return SqlScript(data_type=JX_BOOLEAN, expr=expr, frum=sql.miss, schema=schema)

@@ -7,8 +7,6 @@
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
 
-from __future__ import absolute_import, absolute_import, division, unicode_literals
-
 import ast
 import base64
 import cgi
@@ -22,7 +20,6 @@ from io import BytesIO
 from tempfile import TemporaryFile
 
 import mo_json
-import mo_math
 from mo_dots import concat_field, from_data, to_data, is_many, list_to_data, listwrap
 from mo_future import HTMLParser, PY3, StringIO, is_binary, is_text, long, text
 from mo_logs import Log
@@ -497,8 +494,7 @@ def json_schema_to_markdown(schema):
     return "\n".join(lines)
 
 
-
-ZeroMoment2dict = mo_math.stats.ZeroMoment2dict
+from mo_math.stats import ZeroMoment2dict
 
 
 def text2QRCode(value):

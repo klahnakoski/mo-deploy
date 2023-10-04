@@ -8,7 +8,6 @@
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
 
-from __future__ import absolute_import, division, unicode_literals
 
 from jx_base.expressions.expression import Expression
 from jx_base.expressions.false_op import FALSE
@@ -21,14 +20,14 @@ from mo_logs import Log
 class LeavesOp(Expression):
     date_type = OBJECT
 
-    def __init__(self, *term, prefix=None):
+    def __init__(self, term, prefix=None):
 
         if prefix == None or prefix is NULL:
             prefix = NULL
         elif not is_literal(prefix):
             Log.error("expecting literal prefix")
 
-        Expression.__init__(self, term)
+        Expression.__init__(self, *term)
         self.term = term
         self.prefix = prefix
 

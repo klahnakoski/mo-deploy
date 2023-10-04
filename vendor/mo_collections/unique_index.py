@@ -8,7 +8,7 @@
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
 
-from __future__ import absolute_import, division, unicode_literals
+
 
 from mo_dots import is_data, is_sequence, tuplewrap, from_data, to_data, list_to_data
 from mo_future import PY2, iteritems, Set, Mapping, Iterable, first

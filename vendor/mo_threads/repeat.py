@@ -6,16 +6,15 @@
 #
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
-from __future__ import division
-from __future__ import unicode_literals
 
-from mo_future import is_text
-from mo_logs import Log
+
 from mo_dots import is_null
+from mo_future import is_text
+from mo_logs import logger
+from mo_times import Duration, Date
 
 from mo_threads import Till, Thread, MAIN_THREAD
 from mo_threads.signals import Signal
-from mo_times import Duration, Date
 
 
 class Repeat(object):
@@ -52,14 +51,9 @@ class Repeat(object):
 
     def __enter__(self):
         if self.thread:
-            Log.error("Use as context manager or use start parameter, not both")
+            logger.error("Use as context manager or use start parameter, not both")
         self.thread = Thread.run(
-            "repeat",
-            _repeat,
-            self.message,
-            self.every,
-            Date.now(),
-            please_stop=self.please_stop,
+            "repeat", _repeat, self.message, self.every, Date.now(), please_stop=self.please_stop,
         )
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -78,6 +72,6 @@ def _repeat(message, every, start, please_stop):
 
 def show_message(message):
     def output():
-        Log.note(message)
+        logger.info(message)
 
     return output

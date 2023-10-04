@@ -7,23 +7,21 @@
 #
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
-from __future__ import absolute_import, division, unicode_literals
+
 
 from jx_base.expressions import (
     InOp as InOp_,
-    FALSE,
-    FalseOp,
     NestedOp,
     Variable,
     EqOp,
     ExistsOp,
 )
 from jx_base.language import is_op
-from jx_sqlite.expressions._utils import SQLang, check, SQLScript
+from jx_sqlite.expressions._utils import SQLang, check, SqlScript
 from jx_sqlite.expressions.literal import Literal
-from jx_sqlite.sqlite import SQL_FALSE, SQL_IN, ConcatSQL
-from jx_sqlite.sqlite import quote_list
-from mo_json import T_BOOLEAN
+from mo_sqlite import SQL_IN, ConcatSQL
+from mo_sqlite import quote_list
+from mo_json import JX_BOOLEAN
 from mo_logs import Log
 from pyLibrary.convert import value2boolean
 
@@ -35,12 +33,12 @@ class InOp(InOp_):
         superset = self.superset.partial_eval(SQLang)
         if is_op(superset, Literal):
             values = superset.value
-            if value.data_type == T_BOOLEAN:
+            if value._data_type == JX_BOOLEAN:
                 values = [value2boolean(v) for v in values]
             # TODO: DUE TO LIMITED BOOLEANS, TURN THIS INTO EqOp
             sql = ConcatSQL(value, SQL_IN, quote_list(values))
-            return SQLScript(
-                data_type=T_BOOLEAN, expr=sql, frum=self, miss=FALSE, schema=schema
+            return SqlScript(
+                data_type=JX_BOOLEAN, expr=sql, frum=self, schema=schema
             )
 
         if not is_op(superset, Variable):

@@ -8,22 +8,21 @@
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
 
-from __future__ import absolute_import, division, unicode_literals
 
 from jx_base.expressions.expression import Expression
 from jx_base.expressions.false_op import FALSE
 from jx_base.expressions.literal import Literal, is_literal
 from jx_base.expressions.null_op import NULL
 from mo_dots import is_many
-from mo_json.types import T_NUMBER
+from mo_json.types import JX_NUMBER
 from mo_math import MAX
 
 
 class MaxOp(Expression):
-    data_type = T_NUMBER
+    _data_type = JX_NUMBER
 
     def __init__(self, *terms, default=NULL):
-        Expression.__init__(self, terms)
+        Expression.__init__(self, *terms)
         if terms == None:
             self.terms = []
         elif is_many(terms):
@@ -33,7 +32,10 @@ class MaxOp(Expression):
         self.default = default
 
     def __data__(self):
-        return {"max": [t.__data__() for t in self.terms], "default": self.default.__data__()}
+        return {
+            "max": [t.__data__() for t in self.terms],
+            "default": self.default.__data__(),
+        }
 
     def vars(self):
         output = set()
@@ -42,7 +44,7 @@ class MaxOp(Expression):
         return output
 
     def map(self, map_):
-        return MaxOp([t.map(map_) for t in self.terms])
+        return MaxOp(*(t.map(map_) for t in self.terms))
 
     def missing(self, lang):
         return FALSE

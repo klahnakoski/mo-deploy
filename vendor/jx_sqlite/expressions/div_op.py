@@ -7,19 +7,16 @@
 #
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
-from __future__ import absolute_import, division, unicode_literals
+
 
 from jx_base.expressions import (
     DivOp as DivOp_,
     TRUE,
-    MissingOp,
-    AndOp,
-    OrOp,
     ToNumberOp,
 )
-from jx_sqlite.expressions._utils import SQLang, check, SQLScript
-from jx_sqlite.sqlite import sql_iso, ConcatSQL, sql_call, SQL_DIV
-from mo_json import T_NUMBER
+from jx_sqlite.expressions._utils import SQLang, check, SqlScript
+from mo_sqlite import sql_iso, ConcatSQL, sql_call, SQL_DIV
+from mo_json import JX_NUMBER
 
 
 class DivOp(DivOp_):
@@ -30,23 +27,18 @@ class DivOp(DivOp_):
         d = self.default.partial_eval(SQLang).to_sql(schema)
 
         if d.miss is TRUE:
-            return SQLScript(
-                data_type=T_NUMBER,
+            return SqlScript(
+                data_type=JX_NUMBER,
                 expr=ConcatSQL(sql_iso(lhs), SQL_DIV, sql_iso(rhs)),
                 frum=self,
-                miss=OrOp([MissingOp(self.lhs), MissingOp(self.rhs)]),
                 schema=schema,
             )
         else:
-            return SQLScript(
-                data_type=T_NUMBER | d.type,
+            return SqlScript(
+                data_type=JX_NUMBER | d.type,
                 expr=sql_call(
                     "COALESCE", ConcatSQL(sql_iso(lhs), SQL_DIV, sql_iso(rhs)), d
                 ),
                 frum=self,
-                miss=AndOp([
-                    self.default.missing(SQLang),
-                    OrOp([MissingOp(self.lhs), MissingOp(self.rhs)]),
-                ]),
                 schema=schema,
             )

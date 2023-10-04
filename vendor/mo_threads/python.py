@@ -6,7 +6,7 @@
 #
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
-from __future__ import absolute_import, division, unicode_literals
+
 
 import os
 import platform
@@ -14,9 +14,9 @@ import sys
 from json import dumps as value2json, loads as json2value
 
 from mo_dots import to_data, from_data
-from mo_logs import Except, Log
+from mo_logs import Except, logger
 
-from mo_threads import Lock, Process, Signal, THREAD_STOP, Thread, DONE
+from mo_threads import Lock, Process, Signal, THREAD_STOP, Thread, DONE, python_worker
 
 DEBUG = False
 
@@ -26,14 +26,16 @@ class Python(object):
         python_exe = sys.executable
         config = to_data(config)
         if config.debug.logs:
-            Log.error("not allowed to configure logging on other process")
+            logger.error("not allowed to configure logging on other process")
 
-        Log.note("begin process")
+        logger.info("begin process in dir={dir}", dir=os.getcwd())
         # WINDOWS REQUIRED shell, WHILE LINUX NOT
         shell = "windows" in platform.system().lower()
+        python_worker_file = os.path.abspath(python_worker.__file__)
         self.process = Process(
             name,
-            [python_exe, "-u", f"mo_threads{os.sep}python_worker.py"],
+            [python_exe, "-u", python_worker_file],
+            env={**os.environ, "PYTHONPATH": "."},
             debug=DEBUG,
             cwd=os.getcwd(),
             shell=shell,
@@ -42,29 +44,24 @@ class Python(object):
             config
             | {
                 "debug": {"trace": True},
-                "constants": {"mo_threads": {
-                    "signals": {"DEBUG": False},
-                    "lock": {"DEBUG": False},
-                }},
+                "constants": {"mo_threads": {"signals": {"DEBUG": False}, "lock": {"DEBUG": False}}},
             }
         )))
         while True:
             line = self.process.stdout.pop()
+            if line == THREAD_STOP:
+                logger.error("problem starting python process: STOP detected on stdout")
             if line == '{"out":"ok"}':
                 break
-            Log.note("waiting to start python: {{line}}", line=line)
+            logger.info("waiting to start python: {line}", line=line)
         self.lock = Lock("wait for response from " + name)
         self.stop_error = None
         self.done = DONE
         self.response = None
         self.error = None
 
-        self.watch_stdout = Thread.run(
-            f"watching stdout for {name}", self._watch_stdout
-        )
-        self.watch_stderr = Thread.run(
-            f"watching stderr for {name}", self._watch_stderr
-        )
+        self.watch_stdout = Thread.run(f"watching stdout for {name}", self._watch_stdout)
+        self.watch_stderr = Thread.run(f"watching stderr for {name}", self._watch_stderr)
 
     def _execute(self, command):
         while True:
@@ -80,7 +77,7 @@ class Python(object):
         self.done.wait()
         try:
             if self.error:
-                Log.error("problem with process call", cause=Except(**self.error))
+                logger.error("problem with process call", cause=Except(**self.error))
             else:
                 return self.response
         finally:
@@ -90,16 +87,22 @@ class Python(object):
     def _watch_stdout(self, please_stop):
         while not please_stop:
             line = self.process.stdout.pop(till=please_stop)
-            DEBUG and Log.note("stdout got {{line}}", line=line)
+            DEBUG and logger.info("stdout got {line}", line=line)
             if line == THREAD_STOP:
                 please_stop.go()
                 break
             elif not line:
                 continue
+
             try:
                 data = to_data(json2value(line))
+            except Exception:
+                logger.info("non-json line: {line}", line=line)
+                continue
+
+            try:
                 if "log" in data:
-                    Log.main_log.write(*data.log)
+                    logger.main_log.write(**data.log)
                 elif "out" in data:
                     self.response = data.out
                     self.done.go()
@@ -107,8 +110,8 @@ class Python(object):
                     self.error = data.err
                     self.done.go()
             except Exception as cause:
-                Log.note("non-json line: {{line}}", line=line)
-        DEBUG and Log.note("stdout reader is done")
+                logger.error("unexpected problem", cause=cause)
+        DEBUG and logger.info("stdout reader is done")
 
     def _watch_stderr(self, please_stop):
         while not please_stop:
@@ -117,14 +120,11 @@ class Python(object):
                 if line is None or line == THREAD_STOP:
                     please_stop.go()
                     break
-                Log.note(
-                    "Error line from {{name}}({{pid}}): {{line}}",
-                    line=line,
-                    name=self.process.name,
-                    pid=self.process.pid,
+                logger.info(
+                    "Error line from {name}({pid}): {line}", line=line, name=self.process.name, pid=self.process.pid,
                 )
             except Exception as cause:
-                Log.error("could not process line", cause=cause)
+                logger.error("could not process line", cause=cause)
 
     def import_module(self, module_name, var_names=None):
         if var_names is None:
@@ -145,7 +145,7 @@ class Python(object):
         def output(*args, **kwargs):
             if len(args):
                 if kwargs.keys():
-                    Log.error("Not allowed to use both args and kwargs")
+                    logger.error("Not allowed to use both args and kwargs")
                 return self._execute({item: args})
             else:
                 return self._execute({item: kwargs})
@@ -164,7 +164,7 @@ class Python(object):
 
     def join(self):
         if self.stop_error:
-            Log.error("problem with stop", cause=self.stop_error)
+            logger.error("problem with stop", cause=self.stop_error)
 
         self.process.join()
         self.watch_stdout.join()

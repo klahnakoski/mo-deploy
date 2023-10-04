@@ -7,21 +7,20 @@
 #
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
-from __future__ import absolute_import, division, unicode_literals
+
 
 from jx_base.expressions import (
     NotRightOp as NotRightOp_,
     LengthOp,
     MaxOp,
     SubOp,
-    Literal,
     ZERO,
 )
-from jx_sqlite.expressions._utils import check, OrOp, SQLang
-from jx_sqlite.expressions.sql_script import SQLScript
-from jx_sqlite.sqlite import SQL_ONE
-from jx_sqlite.sqlite import sql_call
-from mo_json import T_TEXT
+from jx_sqlite.expressions._utils import check, SQLang
+from jx_sqlite.expressions.sql_script import SqlScript
+from mo_sqlite import SQL_ONE
+from mo_sqlite import sql_call
+from mo_json import JX_TEXT
 
 
 class NotRightOp(NotRightOp_):
@@ -38,10 +37,9 @@ class NotRightOp(NotRightOp_):
             .to_sql(schema)
         )
         sql = sql_call("SUBSTR", v.frum, SQL_ONE, end)
-        return SQLScript(
-            data_type=T_TEXT,
+        return SqlScript(
+            data_type=JX_TEXT,
             expr=sql,
             frum=self,
-            miss=OrOp([r.miss, v.miss]),
             schema=schema,
         )

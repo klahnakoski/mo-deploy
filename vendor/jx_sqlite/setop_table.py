@@ -9,11 +9,13 @@
 #
 
 
-from __future__ import absolute_import, division, unicode_literals
+
 
 from typing import List, Dict, Tuple
 
-from jx_base import Column
+from jx_base.meta_columns import Column
+from mo_imports import export
+
 from jx_base.expressions import NULL
 from jx_base.language import is_op
 from jx_python import jx
@@ -21,28 +23,7 @@ from jx_sqlite.expressions._utils import SQLang
 from jx_sqlite.expressions.leaves_op import LeavesOp
 from jx_sqlite.expressions.to_boolean_op import ToBooleanOp
 from jx_sqlite.insert_table import InsertTable
-from jx_sqlite.sqlite import (
-    SQL_AND,
-    SQL_FROM,
-    SQL_IS_NULL,
-    SQL_LEFT_JOIN,
-    SQL_LIMIT,
-    SQL_NULL,
-    SQL_ON,
-    SQL_ORDERBY,
-    SQL_SELECT,
-    SQL_UNION_ALL,
-    SQL_WHERE,
-    sql_iso,
-    sql_list,
-    ConcatSQL,
-    SQL_STAR,
-    SQL_EQ,
-    SQL_ZERO,
-    SQL_GT,
-    SQL_DESC,
-)
-from jx_sqlite.sqlite import quote_column, sql_alias
+from mo_sqlite import quote_column, sql_alias
 from jx_sqlite.utils import (
     COLUMN,
     ColumnMapping,
@@ -52,7 +33,7 @@ from jx_sqlite.utils import (
     UID,
     PARENT,
     table_alias,
-    untype_field, sort_to_sqlite_order,
+    sort_to_sqlite_order,
 )
 from mo_dots import (
     Data,
@@ -66,9 +47,10 @@ from mo_dots import (
     list_to_data,
 )
 from mo_future import text
-from mo_json.types import json_type_to_simple_type, OBJECT
+from mo_json.types import jx_type_to_json_type, OBJECT
 from mo_logs import Log
 from mo_math import UNION
+from mo_sql.utils import untype_field
 from mo_times import Date
 
 
@@ -190,7 +172,7 @@ class SetOpTable(InsertTable):
     def to_sql(self, query):
         # GET LIST OF SELECTED COLUMNS
         select_vars = UNION([
-            v for name, value, agg in query.select for v in value.vars()
+            v for name, value in query.select for v in value.vars()
         ])
         schema = query.frum.schema
         known_vars = schema.keys()
@@ -204,7 +186,7 @@ class SetOpTable(InsertTable):
             if not any(startswith_field(cname, v) for cname in known_vars):
                 active_paths["."].add(Column(
                     name=v,
-                    jx_type=OBJECT,
+                    json_type=OBJECT,
                     es_column=".",
                     es_index=".",
                     es_type="NULL",
@@ -281,7 +263,7 @@ class SetOpTable(InsertTable):
             if step not in active_paths:
                 continue
 
-            for i, (name, value, agg) in enumerate(selects):
+            for i, (name, value) in enumerate(selects):
                 column_number = len(sql_selects)
                 if is_op(value, LeavesOp):
                     Log.error("expecting SelectOp to subsume the LeavesOp")
@@ -297,7 +279,7 @@ class SetOpTable(InsertTable):
                     push_column_index=i,
                     pull=get_column(column_number, json_type=value.type),
                     sql=sql,
-                    type=json_type_to_simple_type(sql.type),
+                    type=jx_type_to_json_type(sql.type),
                     column_alias=column_alias,
                     nested_path=nested_path,
                 )
@@ -515,3 +497,6 @@ class DocumentDetails(object):
         self.nested_path: List[str] = ["."]
         self.index_to_column: Dict[int, ColumnMapping] = {}
         self.children: List[DocumentDetails] = []
+
+
+export("jx_sqlite.models.container", SetOpTable)

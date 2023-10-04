@@ -7,7 +7,7 @@
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
 
-from __future__ import absolute_import, division, unicode_literals
+
 
 from copy import copy, deepcopy
 from decimal import Decimal
@@ -73,9 +73,7 @@ class Data(object):
         CONSTRUCT DATA WITH GIVEN PROPERTY VALUES
         """
         if args:
-            raise Exception(
-                "only keywords are allowed, not " + args[0].__class__.__name__
-            )
+            raise Exception("only keywords are allowed, not " + args[0].__class__.__name__)
         _set(self, SLOT, kwargs)
 
     def __bool__(self):
@@ -271,7 +269,7 @@ class Data(object):
 
         if _get(other, CLASS) not in data_types:
             return False
-        e = from_data(other)
+        e = other
         for k, v in d.items():
             if e.get(k) != v:
                 return False
@@ -293,11 +291,7 @@ class Data(object):
 
     def items(self):
         d = _get(self, SLOT)
-        return [
-            (k, to_data(v))
-            for k, v in d.items()
-            if v != None or _get(v, CLASS) in data_types
-        ]
+        return [(k, to_data(v)) for k, v in d.items() if v != None or _get(v, CLASS) in data_types]
 
     def leaves(self, prefix=None):
         """
@@ -397,7 +391,7 @@ class Data(object):
         return v
 
     def __str__(self):
-        return dict.__str__(_get(self, SLOT))
+        return str(_get(self, SLOT))
 
     def __dir__(self):
         d = _get(self, SLOT)
@@ -405,9 +399,9 @@ class Data(object):
 
     def __repr__(self):
         try:
-            return "Data(" + dict.__repr__(_get(self, SLOT)) + ")"
+            return f"to_data({repr(_get(self, SLOT))})"
         except Exception as e:
-            return "Data()"
+            return "Data(?)"
 
 
 MutableMapping.register(Data)
@@ -430,7 +424,17 @@ def leaves(value, prefix=None):
 
 
 def _leaves(value, parent):
-    for k, v in value.items():
+    if isinstance(value, Data):
+        d = _get(value, SLOT)
+        if isinstance(d, dict):
+            items = d.items()
+        else:
+            yield parent, d
+            return
+    else:
+        items = value.items()
+
+    for k, v in items:
         try:
             kk = concat_field(parent, literal_field(k))
             if _get(v, CLASS) in data_types:
@@ -466,14 +470,14 @@ def _iadd(self, other):
         else:
             d = dict_to_data({"$": self})
         d += dict_to_data({"$": other})
-        d['.'] = d['$']
+        d["."] = d["$"]
         return d
 
     d = from_data(self)
     for ok, ov in other.items():
         sv = d.get(ok)
         if sv == None:
-            d[ok] = deepcopy(ov)
+            d[ok] = from_data(deepcopy(ov))
         elif isinstance(ov, (Decimal, float, long, int)):
             if _get(sv, CLASS) in data_types:
                 get_logger().error(
@@ -486,7 +490,7 @@ def _iadd(self, other):
             else:
                 d[ok] = sv + ov
         elif is_list(ov):
-            d[ok] = listwrap(sv) + ov
+            d[ok] = from_data(listwrap(sv) + ov)
         elif _get(ov, CLASS) in data_types:
             if _get(sv, CLASS) in data_types:
                 _iadd(sv, ov)

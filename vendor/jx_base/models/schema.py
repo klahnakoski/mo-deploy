@@ -9,9 +9,7 @@
 #
 
 from copy import copy
-from typing import Set, Tuple
 
-import jx_base
 from mo_dots import Null, relative_field, set_default, startswith_field, dict_to_data
 from mo_json import EXISTS, ARRAY, OBJECT, INTERNAL
 from mo_json.typed_encoder import unnest_path, untype_path
@@ -31,9 +29,7 @@ class Schema(object):
         self._columns = copy(columns)
         self.table = table_name
         self.query_path = "."
-        self.lookup, self.lookup_leaves, self.lookup_variables = _indexer(
-            columns, self.query_path
-        )
+        self.lookup, self.lookup_leaves, self.lookup_variables = _indexer(columns, self.query_path)
 
     def __getitem__(self, column_name):
         cs = self.lookup.get(column_name)
@@ -68,7 +64,7 @@ class Schema(object):
         """
         return list(self.lookup_variables.get(unnest_path(name), Null))
 
-    def leaves(self, name) -> Set[Tuple[str, jx_base.Column]]:
+    def leaves(self, name):
         """
         RETURN LEAVES OF GIVEN PATH NAME
         pull leaves, considering query_path and namespace
@@ -91,14 +87,14 @@ class Schema(object):
                 for k, cs in self.lookup.items()
                 # if startswith_field(k, full_name)
                 for c in cs
-                if c.jx_type not in INTERNAL
+                if c.json_type not in INTERNAL
             },
             {
                 c.name: c.es_column
                 for k, cs in self.lookup.items()
                 # if startswith_field(k, full_name)
                 for c in cs
-                if c.jx_type not in INTERNAL
+                if c.json_type not in INTERNAL
             },
         )
 
@@ -168,3 +164,6 @@ def _indexer(columns, query_path):
                 lookup_variables[k] = cs
 
     return relative_lookup, lookup_leaves, lookup_variables
+
+
+# export("jx_base", Schema)

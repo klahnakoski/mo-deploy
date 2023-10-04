@@ -8,7 +8,6 @@
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
 
-from __future__ import absolute_import, division, unicode_literals
 
 from jx_base.expressions._utils import builtin_ops
 from jx_base.expressions.expression import Expression
@@ -16,17 +15,18 @@ from jx_base.expressions.false_op import FALSE
 from jx_base.expressions.literal import is_literal, Literal
 from jx_base.expressions.variable import Variable
 from jx_base.language import is_op
-from mo_json.types import T_BOOLEAN
+from mo_json.types import JX_BOOLEAN
 
 
 class BaseInequalityOp(Expression):
     has_simple_form = True
-    data_type = T_BOOLEAN
+    _data_type = JX_BOOLEAN
     op = None
 
-    def __init__(self, *terms):
-        Expression.__init__(self, *terms)
-        self.lhs, self.rhs = terms
+    def __init__(self, lhs, rhs):
+        Expression.__init__(self, lhs, rhs)
+        self.lhs = lhs
+        self.rhs = rhs
 
     @property
     def name(self):
@@ -59,4 +59,4 @@ class BaseInequalityOp(Expression):
         if is_literal(lhs) and is_literal(rhs):
             return Literal(builtin_ops[self.op](lhs, rhs))
 
-        return self.__class__([lhs, rhs])
+        return self.__class__(lhs, rhs)

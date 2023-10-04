@@ -8,21 +8,20 @@
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
 
-from __future__ import absolute_import, division, unicode_literals
 
 from jx_base.expressions.expression import Expression
 from jx_base.expressions.literal import is_literal
 from jx_base.expressions.null_op import NULL
 from jx_base.language import is_op
 from mo_dots import last, is_many
-from mo_json import OBJECT
+from mo_json import OBJECT, jx_type_to_json_type
 
 
 class LastOp(Expression):
     def __init__(self, term):
         Expression.__init__(self, term)
         self.term = term
-        self.data_type = self.term.type
+        self._data_type = self.term.type
 
     def __data__(self):
         return {"last": self.term.__data__()}
@@ -49,8 +48,6 @@ class LastOp(Expression):
     def partial_eval(self, lang):
         term = self.term.partial_eval(lang)
         if is_op(self.term, LastOp):
-            return term
-        elif term.type != OBJECT and not term.many:
             return term
         elif term is NULL:
             return term

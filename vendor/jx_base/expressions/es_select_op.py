@@ -8,7 +8,6 @@
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
 
-from __future__ import absolute_import, division, unicode_literals
 
 from jx_base.expressions.expression import Expression
 from jx_base.expressions.false_op import FALSE
@@ -20,7 +19,7 @@ default_select = ({"name": ".", "value": IDENTITY},)
 
 
 class ESSelectOp(Expression):
-    data_type = OBJECT
+    _data_type = OBJECT
     has_simple_form = False
 
     def __init__(self, path="."):

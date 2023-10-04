@@ -8,15 +8,18 @@
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
 
-from __future__ import absolute_import, division, unicode_literals
 
 from jx_base.expressions.base_multi_op import BaseMultiOp
+from jx_base.expressions.literal import Literal
+from mo_logs import logger
 
 
 class PercentileOp(BaseMultiOp):
     op = "percentile"
 
-    def __init__(self, *terms, default=None, nulls=False, **clauses):
-        BaseMultiOp.__init__(terms, default, nulls, **clauses)
-        self.percentile = 0.50
-
+    def __init__(self, term, percentile=None):
+        if percentile is None:
+            percentile = Literal(0.5)
+        if not isinstance(percentile, float):
+            logger.error("Expecting `percentile` to be a float")
+        BaseMultiOp.__init__(self, term, Literal(percentile))

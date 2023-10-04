@@ -7,7 +7,7 @@
 #
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
-from __future__ import absolute_import, division, unicode_literals
+
 
 from jx_base.expressions import LeavesOp as LeavesOp_, NULL
 from jx_base.expressions.select_op import SelectOp

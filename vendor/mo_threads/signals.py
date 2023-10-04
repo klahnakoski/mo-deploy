@@ -11,30 +11,33 @@
 # THIS SIGNAL IS IMPORTANT FOR PROPER SIGNALLING WHICH ALLOWS
 # FOR FAST AND PREDICTABLE SHUTDOWN AND CLEANUP OF THREADS
 
-from __future__ import absolute_import, division, unicode_literals
 
 from weakref import ref
 
 from mo_dots import is_null
 from mo_future import allocate_lock as _allocate_lock
-from mo_logs import Log, Except
+from mo_imports import expect
+from mo_logs import logger, Except
 from mo_logs.exceptions import get_stacktrace
+from mo_logs.strings import quote
+
+current_thread, threads = expect("current_thread", "threads")
+
 
 DEBUG = False
 TRACE_THEN = False  # GRAB STACK TRACE OF then() CALL FOR BLAME
+MAX_NAME_LENGTH = 100
 
 
 def standard_warning(cause):
-    Log.warning(
-        "Trigger on Signal.go() failed, and no error function provided!",
-        cause=cause,
-        stack_depth=1,
+    logger.warning(
+        "Trigger on Signal.go() failed, and no error function provided!", cause=cause, stack_depth=1,
     )
 
 
 def debug_warning(stacktrace):
     def warning(cause):
-        Log.warning(
+        logger.warning(
             "Trigger on Signal.go() failed, and no error function provided!",
             cause=[cause, Except(template="attached at", trace=stacktrace)],
             stack_depth=1,
@@ -55,7 +58,7 @@ class Signal(object):
     __slots__ = ["_name", "lock", "_go", "job_queue", "waiting_threads", "__weakref__"]
 
     def __init__(self, name=None):
-        DEBUG and name and Log.note("New signal {{name|quote}}", name=name)
+        DEBUG and name and print(f"New signal {quote(name)}")
         self._name = name
         self.lock = _allocate_lock()
         self._go = False
@@ -80,6 +83,10 @@ class Signal(object):
         if self._go:
             return True
 
+        if DEBUG:
+            if threads.MAIN_THREAD.timers == current_thread():
+                logger.error("Deadlock detected", stack_depth=1)
+
         with self.lock:
             if self._go:
                 return True
@@ -90,16 +97,16 @@ class Signal(object):
             else:
                 self.waiting_threads.append(stopper)
 
-        DEBUG and self._name and Log.note("wait for go {{name|quote}}", name=self.name)
+        DEBUG and self._name and print(f"wait for go {quote(self.name)}")
         stopper.acquire()
-        DEBUG and self._name and Log.note("GOing! {{name|quote}}", name=self.name)
+        DEBUG and self._name and print(f"GOing! {quote(self.name)}")
         return True
 
     def go(self):
         """
         ACTIVATE SIGNAL (DOES NOTHING IF SIGNAL IS ALREADY ACTIVATED)
         """
-        DEBUG and self._name and Log.note("GO! {{name|quote}}", name=self.name)
+        DEBUG and self._name and print(f"GO! {quote(self.name)}")
 
         if self._go:
             return self
@@ -109,14 +116,12 @@ class Signal(object):
                 return self
             self._go = True
 
-        DEBUG and self._name and Log.note("internal GO! {{name|quote}}", name=self.name)
+        DEBUG and self._name and print(f"internal GO! {quote(self.name)}")
         jobs, self.job_queue = self.job_queue, None
         threads, self.waiting_threads = self.waiting_threads, None
 
         if threads:
-            DEBUG and self._name and Log.note(
-                "Release {{num}} threads", num=len(threads)
-            )
+            DEBUG and self._name and print(f"Release {len(threads)} threads")
             for t in threads:
                 t.release()
 
@@ -130,13 +135,14 @@ class Signal(object):
 
     def then(self, target, error=standard_warning):
         """
+        WARNING: THIS IS RUN BY THE timer THREAD, KEEP THIS FUNCTION SHORT, AND DO NOT BLOCK
         RUN target WHEN SIGNALED
         """
         if DEBUG:
             if not target:
-                Log.error("expecting target")
+                logger.error("expecting target")
             if isinstance(target, Signal):
-                Log.error("expecting a function, not a signal")
+                logger.error("expecting a function, not a signal")
 
         with self.lock:
             if not self._go:
@@ -183,28 +189,35 @@ class Signal(object):
         return repr(self._go)
 
     def __or__(self, other):
-        if other == None:
+        if is_null(other):
             return self
+        if other is False:
+            return self
+        if other is True:
+            return DONE
         if not isinstance(other, Signal):
-            Log.error("Expecting OR with other signal")
+            logger.error("Expecting OR with other signal")
         if self or other:
             return DONE
 
         return or_signal(self, other)
 
-    def __ror__(self, other):
-        return self.__or__(other)
+    __ror__ = __or__
 
     def __and__(self, other):
-        if is_null(other) or other:
+        if is_null(other):
+            return self
+        if other is False:
+            return NEVER
+        if other is True:
             return self
         if not isinstance(other, Signal):
-            Log.error("Expecting OR with other signal")
+            logger.error("Expecting OR with other signal")
 
-        if DEBUG and self._name:
-            output = Signal(self.name + " & " + other.name)
-        else:
-            output = Signal(self.name + " & " + other.name)
+        name = f"{self.name} & {other.name}"
+        if len(name) > MAX_NAME_LENGTH:
+            name = name[:MAX_NAME_LENGTH] + "..."
+        output = Signal(name)
 
         gen = AndSignals(output, 2)
         self.then(gen.done)
@@ -237,7 +250,14 @@ class AndSignals(object):
 
 
 def or_signal(*dependencies):
-    output = Signal(" | ".join(d.name for d in dependencies))
+    if len(dependencies) > 5:
+        name = f"{dependencies[0].name} | ({len(dependencies)} other signals)"
+    else:
+        name = " | ".join(d.name for d in dependencies)
+    if len(name) > MAX_NAME_LENGTH:
+        name = name[:MAX_NAME_LENGTH] + "..."
+
+    output = Signal(name)
     OrSignal(output, dependencies)
     return output
 
@@ -274,4 +294,10 @@ class OrSignal(object):
         return id(self) == id(other)
 
 
+class Never(Signal):
+    def go(self):
+        return self
+
+
 DONE = Signal().go()
+NEVER = Never()

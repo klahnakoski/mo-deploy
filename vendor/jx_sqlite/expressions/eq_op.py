@@ -7,7 +7,7 @@
 #
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
-from __future__ import absolute_import, division, unicode_literals
+
 
 from jx_base.expressions import (
     EqOp as EqOp_,
@@ -21,7 +21,7 @@ from jx_base.expressions import (
 )
 from jx_base.expressions._utils import builtin_ops, simplified
 from jx_sqlite.expressions._utils import SQLang, check
-from mo_json import T_ARRAY
+from mo_json import JX_ARRAY
 
 
 class EqOp(EqOp_):
@@ -41,14 +41,14 @@ class EqOp(EqOp_):
 
     @simplified
     def partial_eval(self, lang):
-        lhs = self.lhs.partial_eval(SQLang)
-        rhs = self.rhs.partial_eval(SQLang)
+        lhs = self.lhs.partial_eval(lang)
+        rhs = self.rhs.partial_eval(lang)
 
         if is_literal(lhs):
             if is_literal(rhs):
                 return TRUE if builtin_ops["eq"](lhs.value, rhs.value) else FALSE
             lhs, rhs = rhs, lhs
-        if is_literal(rhs) and rhs.type in T_ARRAY:
+        if is_literal(rhs) and rhs.type in JX_ARRAY:
             return InOp([lhs, rhs]).partial_eval(lang)
 
         rhs_missing = rhs.missing(SQLang)

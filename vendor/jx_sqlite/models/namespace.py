@@ -6,7 +6,7 @@
 # You can obtain one at http:# mozilla.org/MPL/2.0/.
 #
 
-from __future__ import absolute_import, division, unicode_literals
+
 
 from copy import copy
 
@@ -25,6 +25,7 @@ class Namespace(jx_base.Namespace):
     def __init__(self, container):
         self.container = container
         self.columns = ColumnList(container.db)
+        self.relations = self._load_relations()
 
     def __copy__(self):
         output = object.__new__(Namespace)
@@ -37,10 +38,28 @@ class Namespace(jx_base.Namespace):
         return Facts(self, snowflake)
 
     def get_schema(self, fact_name):
-        return Schema("..", Snowflake(fact_name, self))
+        # TODO: HOW TO REDUCE RELATIONS TO JUST THIS TREE? (AVOID CYCLES)
+        return Schema([fact_name], Snowflake(fact_name, self))
 
     def get_snowflake(self, fact_name):
         return Snowflake(fact_name, self)
+
+    def get_relations(self):
+        return self.relations[:]
+
+    def get_columns(self, table_name):
+        return self.columns.find_columns(table_name)
+
+    def get_tables(self):
+        return self.columns.tables
+
+    def _load_relations(self):
+        db = self.container.db
+        return [
+            r
+            for t in db.get_tables()
+            for r in db.get_relations(t.name)
+        ]
 
     def add_column_to_schema(self, column):
         self.columns.add(column)

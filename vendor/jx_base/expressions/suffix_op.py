@@ -8,11 +8,10 @@
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
 
-from __future__ import absolute_import, division, unicode_literals
 
 import re
 
-from jx_base.expressions._utils import TYPE_CHECK
+from jx_base.expressions._utils import TYPE_CHECK, jx_expression
 from jx_base.expressions.case_op import CaseOp
 from jx_base.expressions.expression import Expression
 from jx_base.expressions.false_op import FALSE
@@ -25,13 +24,13 @@ from jx_base.language import is_op
 from mo_dots import coalesce
 from mo_dots import is_data, is_missing
 from mo_future import first
-from mo_json.types import T_BOOLEAN, STRING
+from mo_json.types import JX_BOOLEAN, STRING
 from mo_logs import Log
 
 
 class SuffixOp(Expression):
     has_simple_form = True
-    data_type = T_BOOLEAN
+    _data_type = JX_BOOLEAN
 
     def __init__(self, expr, suffix):
         Expression.__init__(self, expr, suffix)
@@ -91,7 +90,7 @@ class SuffixOp(Expression):
         if self.expr is None:
             return TRUE
         else:
-            return SuffixOp([self.expr.map(map_), self.suffix.map(map_)])
+            return SuffixOp(self.expr.map(map_), self.suffix.map(map_))
 
     def partial_eval(self, lang):
         if self.expr is None:
@@ -99,11 +98,8 @@ class SuffixOp(Expression):
         if not is_literal(self.suffix) and self.suffix.type == STRING:
             Log.error("can only hanlde literal suffix ")
 
-        return CaseOp([
+        return CaseOp(
             WhenOp(self.expr.missing(lang), then=FALSE),
             WhenOp(self.suffix.missing(lang), then=TRUE),
-            RegExpOp([
-                self.expr,
-                Literal(".*" + re.escape(coalesce(self.suffix.value, ""))),
-            ]),
-        ]).partial_eval(lang)
+            RegExpOp(self.expr, Literal(".*" + re.escape(coalesce(self.suffix.value, ""))),),
+        ).partial_eval(lang)

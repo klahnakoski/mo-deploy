@@ -9,19 +9,21 @@
 #
 
 
-from __future__ import absolute_import, division, unicode_literals
+
+
+from jx_base.language import is_op
+from jx_base.meta_columns import Column
+from mo_imports import export
 
 import mo_json
-from jx_base import Column, Facts
+from jx_base import Facts
+from jx_base.expressions import jx_expression, QueryOp, SelectOp, Variable, FromOp
+from jx_base.expressions.expression import Expression
 from jx_base.expressions.select_op import normalize_one
 from jx_base.models.container import type2container
-from jx_base.domains import SimpleSetDomain
-from jx_base.expressions import TupleOp, jx_expression, QueryOp, SelectOp, NULL
-from jx_base.language import is_op
-from jx_python import jx
 from jx_sqlite.expressions._utils import SQLang
 from jx_sqlite.groupby_table import GroupbyTable
-from jx_sqlite.sqlite import (
+from mo_sqlite import (
     SQL_FROM,
     SQL_ORDERBY,
     SQL_SELECT,
@@ -29,32 +31,24 @@ from jx_sqlite.sqlite import (
     sql_count,
     sql_iso,
     sql_list,
-    SQL_CREATE,
-    SQL_AS,
     SQL_DELETE,
     ConcatSQL,
     JoinSQL,
     SQL_COMMA,
 )
-from jx_sqlite.sqlite import quote_column, sql_alias
-from jx_sqlite.utils import GUID, sql_aggs, unique_name, untyped_column
-from mo_collections.matrix import Matrix, index_to_coordinate
+from mo_sqlite import quote_column, sql_alias
+from jx_sqlite.utils import GUID, sql_aggs
 from mo_dots import (
     Data,
-    to_data,
     coalesce,
     concat_field,
-    is_list,
-    listwrap,
     relative_field,
-    startswith_field,
     unwraplist,
-    wrap,
-    list_to_data, from_data,
-)
-from mo_future import text, transpose, is_text
-from mo_json import STRING, STRUCT
+    list_to_data, )
+from mo_future import text
+from mo_json import STRING, STRUCT, to_jx_type
 from mo_logs import Log
+from mo_sql.utils import untyped_column
 from mo_threads import register_thread
 
 
@@ -101,7 +95,7 @@ class QueryTable(GroupbyTable):
         select = []
         column_names = []
         for c in self.schema.columns:
-            if c.jx_type in STRUCT:
+            if c.json_type in STRUCT:
                 continue
             if len(c.nested_path) != 1:
                 continue
@@ -122,17 +116,13 @@ class QueryTable(GroupbyTable):
             {c: v for c, v in zip(column_names, r)} for r in result.data
         ])
 
-    def query(self, query=None):
-        """
-        :param query:  JSON Query Expression, SET `format="container"` TO MAKE NEW TABLE OF RESULT
-        :return:
-        """
-        normalized_query = jx_expression(query, SQLang)
-
-        command = normalized_query.apply(self)
-        output = self.container.db.query(command)
-
-        return output
+    def query(self, query: Expression):
+        if isinstance(query, Variable):
+            column = self.schema.column(query.var)
+            return SelectOp(self, *[{"name": query.var, "value": Variable(c.es_column, to_jx_type(c.json_type))} for c in column])
+        elif is_op(query, FromOp):
+            pass # TODO: select sub table
+        Log.error("do not know yet")
 
     def query_metadata(self, query):
         frum, query["from"] = query["from"], self
@@ -161,7 +151,7 @@ class QueryTable(GroupbyTable):
         if columns[-1].es_column != GUID:
             columns.append(Column(
                 name=GUID,
-                jx_type=STRING,
+                json_type=STRING,
                 es_column=GUID,
                 es_index=self.snowflake.fact_name,
                 nested_path=["."],
@@ -272,3 +262,6 @@ class Transaction:
 
 
 type2container["sqlite"] = QueryTable
+
+export("jx_sqlite.expressions.nested_op", QueryTable)
+export("jx_sqlite.models.container", QueryTable)

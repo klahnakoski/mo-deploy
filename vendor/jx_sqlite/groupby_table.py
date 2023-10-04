@@ -9,14 +9,14 @@
 #
 
 
-from __future__ import absolute_import, division, unicode_literals
+
 
 from jx_base.expressions import TRUE, Variable, SelectOp, LeavesOp, CountOp
 from jx_base.language import is_op
 from jx_python import jx
 from jx_sqlite.edges_table import EdgesTable
 from jx_sqlite.expressions._utils import SQLang
-from jx_sqlite.sqlite import (
+from mo_sqlite import (
     SQL_FROM,
     SQL_GROUPBY,
     SQL_IS_NULL,
@@ -36,7 +36,7 @@ from jx_sqlite.sqlite import (
     SQL_DESC,
     SQL_COMMA,
 )
-from jx_sqlite.sqlite import quote_column, sql_alias, sql_call
+from mo_sqlite import quote_column, sql_alias, sql_call
 from jx_sqlite.utils import (
     ColumnMapping,
     _make_column_name,
@@ -46,8 +46,8 @@ from jx_sqlite.utils import (
     UID,
     table_alias,
 )
-from mo_dots import split_field, startswith_field, relative_field, concat_field, join_field, unliteral_field
-from mo_json import json_type_to_simple_type, T_INTEGER
+from mo_dots import split_field, startswith_field, relative_field, unliteral_field
+from mo_json import jx_type_to_json_type, JX_INTEGER
 
 
 class GroupbyTable(EdgesTable):
@@ -91,7 +91,7 @@ class GroupbyTable(EdgesTable):
                 for name, value, aggregate in edge_sql.frum:
                     edge_sql = value.to_sql(schema)
                     column_number = len(selects)
-                    data_type = json_type_to_simple_type(edge_sql.data_type)
+                    data_type = jx_type_to_json_type(edge_sql._data_type)
 
                     column_alias = _make_column_name(column_number)
                     groupby.append(edge_sql)
@@ -115,7 +115,7 @@ class GroupbyTable(EdgesTable):
                 ]
                 for name, edge_sql in fields:
                     column_number = len(selects)
-                    data_type = json_type_to_simple_type(edge_sql.data_type)
+                    data_type = jx_type_to_json_type(edge_sql._data_type)
 
                     column_alias = _make_column_name(column_number)
                     groupby.append(edge_sql)
@@ -134,7 +134,7 @@ class GroupbyTable(EdgesTable):
                 column_index += 1
             else:
                 column_number = len(selects)
-                data_type = json_type_to_simple_type(edge_sql.data_type)
+                data_type = jx_type_to_json_type(edge_sql._data_type)
 
                 column_alias = _make_column_name(column_number)
                 groupby.append(edge_sql)
@@ -162,7 +162,7 @@ class GroupbyTable(EdgesTable):
                 and is_op(select["aggregate"], CountOp)
             ):
                 sql = sql_count(SQL_ONE)
-                data_type = T_INTEGER
+                data_type = JX_INTEGER
             else:
                 sql = select["value"].partial_eval(SQLang).to_sql(schema)
                 data_type = sql.frum.type
@@ -186,7 +186,7 @@ class GroupbyTable(EdgesTable):
                 pull=get_column(column_number),
                 sql=sql,
                 column_alias=select["name"],
-                type=json_type_to_simple_type(data_type),
+                type=jx_type_to_json_type(data_type),
             )
             column_index += 1
 

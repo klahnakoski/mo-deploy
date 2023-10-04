@@ -8,12 +8,12 @@
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
 
-from __future__ import absolute_import, division, unicode_literals
 
-from mo_imports import expect
 from jx_base.expressions.expression import Expression, _jx_expression
+from jx_base.language import is_op
 from jx_base.models.container import Container
 from mo_dots import to_data
+from mo_imports import expect
 
 Variable = expect("Variable")
 
@@ -24,7 +24,7 @@ class FromOp(Expression):
     def __init__(self, frum):
         Expression.__init__(self, frum)
         self.frum = frum
-        self.data_type = frum.type
+        self._data_type = frum.type
 
     @classmethod
     def define(cls, expr):
@@ -56,9 +56,9 @@ class FromOp(Expression):
 
     @property
     def type(self):
-        return self.data_type
+        return self._data_type
 
     def __eq__(self, other):
-        if isinstance(other, FromOp):
+        if is_op(other, FromOp):
             return self.frum == other.frum
         return self.frum == other

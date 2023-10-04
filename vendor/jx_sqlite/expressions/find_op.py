@@ -7,7 +7,7 @@
 #
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
-from __future__ import absolute_import, division, unicode_literals
+
 
 from jx_base.expressions import (
     FindOp as FindOp_,
@@ -20,8 +20,8 @@ from jx_sqlite.expressions.and_op import AndOp
 from jx_sqlite.expressions.not_left_op import NotLeftOp
 from jx_sqlite.expressions.or_op import OrOp
 from jx_sqlite.expressions.sql_instr_op import SqlInstrOp
-from jx_sqlite.expressions.sql_script import SQLScript
-from jx_sqlite.sqlite import (
+from jx_sqlite.expressions.sql_script import SqlScript
+from mo_sqlite import (
     SQL_CASE,
     SQL_ELSE,
     SQL_END,
@@ -33,8 +33,8 @@ from jx_sqlite.sqlite import (
     SQL_PLUS,
     SQL_SUB,
 )
-from jx_sqlite.sqlite import sql_call, quote_column
-from mo_json import T_INTEGER
+from mo_sqlite import sql_call, quote_column
+from mo_json import JX_INTEGER
 
 
 class FindOp(FindOp_):
@@ -78,7 +78,7 @@ class FindOp(FindOp_):
                 SQL_END,
             ),
         )
-        return SQLScript(data_type=T_INTEGER, expr=sql, frum=self, schema=schema)
+        return SqlScript(data_type=JX_INTEGER, expr=sql, frum=self, schema=schema)
 
     def missing(self, lang):
         not_found = BasicEqOp([

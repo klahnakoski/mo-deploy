@@ -8,7 +8,8 @@
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
 
-from __future__ import absolute_import, division, unicode_literals
+
+from mo_dots import Null, startswith_field, coalesce
 
 from jx_base.expressions.and_op import AndOp
 from jx_base.expressions.eq_op import EqOp
@@ -21,18 +22,17 @@ from jx_base.expressions.or_op import OrOp
 from jx_base.expressions.true_op import TRUE
 from jx_base.expressions.variable import IDENTITY
 from jx_base.language import is_op
-from mo_dots import Null, startswith_field, coalesce, listwrap
-from mo_imports import export, expect
-from mo_json.types import T_BOOLEAN
+from mo_imports import export
+from mo_json.types import JX_BOOLEAN
 
 
 class NestedOp(Expression):
-    data_type = T_BOOLEAN
+    _data_type = JX_BOOLEAN
     has_simple_form = False
 
     __slots__ = ["nested_path", "select", "where", "sort", "limit"]
 
-    def __init__(self, *frum,  nested_path, select=None, where=TRUE, sort=Null, limit=NULL):
+    def __init__(self, *frum, nested_path, select=None, where=TRUE, sort=Null, limit=NULL):
         select = select or SelectOp(frum, {"name": ".", "value": IDENTITY})
         Expression.__init__(self, [select, where])
         self.nested_path = nested_path
@@ -57,14 +57,14 @@ class NestedOp(Expression):
         MERGE TWO  NestedOp
         """
         if not is_op(other, NestedOp):
-            return AndOp([self, other])
+            return AndOp(self, other)
 
         # MERGE
         elif self.nested_path == other.frum:
             return NestedOp(
                 self.nested_path,
-                listwrap(self.select) + listwrap(other.select),
-                AndOp([self.where, other.where]),
+                enlist(self.select) + enlist(other.select),
+                AndOp(self.where, other.where),
                 coalesce(self.sort, other.sort),
                 coalesce(self.limit, other.limit),
             )
@@ -78,7 +78,7 @@ class NestedOp(Expression):
         elif startswith_field(self.nested_path.var, other.frum.var):
             return NestedOp(self, other.select, other.where, other.sort, other.limit,)
         else:
-            return AndOp([self, other])
+            return AndOp(self, other)
 
     def __data__(self):
         return {"nested": {
@@ -91,22 +91,16 @@ class NestedOp(Expression):
 
     def __eq__(self, other):
         return (
-                is_op(other, NestedOp)
-                and self.nested_path == other.nested_path
-                and self.select == other.select
-                and self.where == other.where
-                and self.sort == other.sort
-                and self.limit == other.limit
+            is_op(other, NestedOp)
+            and self.nested_path == other.nested_path
+            and self.select == other.select
+            and self.where == other.where
+            and self.sort == other.sort
+            and self.limit == other.limit
         )
 
     def vars(self):
-        return (
-            self.nested_path.vars()
-            | self.select.vars()
-            | self.where.vars()
-            | self.sort.vars()
-            | self.limit.vars()
-        )
+        return self.nested_path.vars() | self.select.vars() | self.where.vars() | self.sort.vars() | self.limit.vars()
 
     def map(self, mapping):
         return NestedOp(
@@ -121,12 +115,12 @@ class NestedOp(Expression):
         return self.missing(lang)
 
     def missing(self, lang):
-        return OrOp([
+        return OrOp(
             NotOp(self.where),
             # self.path.missing(lang), ASSUME PATH TO TABLES, WHICH ASSUMED TO HAVE DATA (EXISTS)
             # self.select.missing(lang),
-            EqOp([self.limit, ZERO]),
-        ]).partial_eval(lang)
+            EqOp(self.limit, ZERO),
+        ).partial_eval(lang)
 
 
 export("jx_base.expressions.basic_in_op", NestedOp)

@@ -8,7 +8,6 @@
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
 
-from __future__ import absolute_import, division, unicode_literals
 
 from mo_imports import expect
 from jx_base.expressions.and_op import AndOp
@@ -17,28 +16,26 @@ from jx_base.expressions.literal import Literal, is_literal
 from jx_base.expressions.false_op import FALSE
 from jx_base.language import is_op
 from mo_dots import is_many
-from mo_json.types import T_BOOLEAN
+from mo_json.types import JX_BOOLEAN
 from mo_logs import Log
 
-EqOp, MissingOp, NestedOp, NotOp, NULL, Variable = expect(
-    "EqOp", "MissingOp", "NestedOp", "NotOp", "NULL", "Variable"
-)
+EqOp, MissingOp, NestedOp, NotOp, NULL, Variable = expect("EqOp", "MissingOp", "NestedOp", "NotOp", "NULL", "Variable")
 
 
 class BasicInOp(Expression):
     has_simple_form = True
-    data_type = T_BOOLEAN
+    _data_type = JX_BOOLEAN
 
-    def __new__(cls, terms):
-        if is_op(terms[0], Variable) and is_op(terms[1], Literal):
-            name, value = terms
-            if not is_many(value.value):
-                return EqOp([name, Literal([value.value])])
+    def __new__(cls, value, superset):
+        if is_op(value, Variable) and is_op(superset, Literal):
+            if not is_many(superset.value):
+                return EqOp(value, Literal(superset.value))
         return object.__new__(cls)
 
-    def __init__(self, *term):
-        Expression.__init__(self, term)
-        self.value, self.superset = term
+    def __init__(self, value, superset):
+        Expression.__init__(self, value, superset)
+        self.value = value
+        self.superset = superset
         if self.value is None:
             Log.error("Should not happpen")
 
@@ -57,7 +54,7 @@ class BasicInOp(Expression):
         return self.value.vars()
 
     def map(self, map_):
-        return BasicInOp([self.value.map(map_), self.superset.map(map_)])
+        return BasicInOp(self.value.map(map_), self.superset.map(map_))
 
     def partial_eval(self, lang):
         value = self.value.partial_eval(lang)
@@ -70,16 +67,12 @@ class BasicInOp(Expression):
             return Literal(value() in superset())
         elif is_op(value, NestedOp):
             return (
-                NestedOp(
-                    value.nested_path,
-                    None,
-                    AndOp([BasicInOp([value.select, superset]), value.where]),
-                )
+                NestedOp(value.nested_path, None, AndOp(BasicInOp(value.select, superset), value.where),)
                 .exists()
                 .partial_eval(lang)
             )
         else:
-            return lang.BasicInOp([value, superset])
+            return lang.BasicInOp(value, superset)
 
     def __call__(self, row, rownum=None, rows=None):
         value = self.value(row)

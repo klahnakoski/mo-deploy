@@ -7,13 +7,13 @@
 #
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
-from __future__ import absolute_import, division, unicode_literals
 
-from jx_base.expressions import CountOp as CountOp_, FALSE
+
+from jx_base.expressions import CountOp as CountOp_
 from jx_sqlite.expressions._utils import SQLang, check
-from jx_sqlite.expressions.sql_script import SQLScript
-from jx_sqlite.sqlite import JoinSQL, SQL_SUM, sql_iso
-from mo_json import T_INTEGER
+from jx_sqlite.expressions.sql_script import SqlScript
+from mo_sqlite import JoinSQL, SQL_SUM, sql_iso
+from mo_json import JX_INTEGER
 
 
 class CountOp(CountOp_):
@@ -23,10 +23,9 @@ class CountOp(CountOp_):
         for term in self.terms:
             m = term.missing(SQLang).invert(SQLang).partial_eval(SQLang)
             acc.append(sql_iso(m.to_sql(schema).frum))
-        return SQLScript(
-            data_type=T_INTEGER,
+        return SqlScript(
+            data_type=JX_INTEGER,
             expr=JoinSQL(SQL_SUM, acc),
             frum=self,
-            miss=FALSE,
             schema=schema,
         )

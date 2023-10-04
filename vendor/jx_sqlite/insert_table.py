@@ -9,14 +9,15 @@
 #
 
 
-from __future__ import absolute_import, division, unicode_literals
+
 
 from typing import Dict, List
 
-from jx_base import Column, generateGuid, Facts
+from jx_base import generateGuid, Facts
 from jx_base.expressions import jx_expression, TRUE
-from jx_sqlite.expressions._utils import json_type_to_sql_type_key
-from jx_sqlite.sqlite import (
+from jx_base.meta_columns import Column
+from jx_base.models.nested_path import NestedPath
+from mo_sqlite import (
     SQL_AND,
     SQL_FROM,
     SQL_INNER_JOIN,
@@ -38,7 +39,7 @@ from jx_sqlite.sqlite import (
     SQL_ON,
     SQL_COMMA,
 )
-from jx_sqlite.sqlite import (
+from mo_sqlite import (
     json_type_to_sqlite_type,
     quote_column,
     quote_value,
@@ -50,9 +51,7 @@ from jx_sqlite.utils import (
     PARENT,
     UID,
     get_if_type,
-    value_to_jx_type,
-    typed_column,
-    untyped_column,
+    value_to_json_type,
 )
 from mo_dots import (
     Data,
@@ -63,11 +62,12 @@ from mo_dots import (
     from_data,
     is_many,
     is_data,
-    to_data,
+    to_data, relative_field,
 )
 from mo_future import text, first
 from mo_json import STRUCT, ARRAY, OBJECT
 from mo_logs import Log
+from mo_sql.utils import typed_column, json_type_to_sql_type_key, untyped_column
 from mo_times import Date
 
 
@@ -101,16 +101,16 @@ class InsertTable(Facts):
             v: c.es_column
             for v in _vars
             for c in self.columns.get(v, Null)
-            if c.jx_type not in STRUCT
+            if c.json_type not in STRUCT
         }
         where_sql = where.map(_map).to_sql(self.schema)
         new_columns = set(command.set.keys()) - set(c.name for c in self.schema.columns)
         for new_column_name in new_columns:
             nested_value = command.set[new_column_name]
-            ctype = value_to_jx_type(nested_value)
+            ctype = value_to_json_type(nested_value)
             column = Column(
                 name=new_column_name,
-                jx_type=ctype,
+                json_type=ctype,
                 es_index=self.name,
                 es_type=json_type_to_sqlite_type(ctype),
                 es_column=typed_column(new_column_name, ctype),
@@ -120,7 +120,7 @@ class InsertTable(Facts):
 
         # UPDATE THE ARRAY VALUES
         for nested_column_name, nested_value in command.set.items():
-            if value_to_jx_type(nested_value) == "nested":
+            if value_to_json_type(nested_value) == "nested":
                 nested_table_name = concat_field(self.name, nested_column_name)
                 nested_table = nested_tables[nested_column_name]
                 self_primary_key = sql_list(
@@ -246,7 +246,7 @@ class InsertTable(Facts):
                     for c in cs:
                         column = Column(
                             name=c.name,
-                            jx_type=c.jx_type,
+                            json_type=c.json_type,
                             es_type=c.es_type,
                             es_index=c.es_index,
                             es_column=c.es_column,
@@ -255,7 +255,7 @@ class InsertTable(Facts):
                         )
                         if c.name not in self.columns:
                             self.columns[column.name] = {column}
-                        elif c.jx_type not in [c.jx_type for c in self.columns[c.name]]:
+                        elif c.json_type not in [c.json_type for c in self.columns[c.name]]:
                             self.columns[column.name].add(column)
 
         command = ConcatSQL(
@@ -267,10 +267,10 @@ class InsertTable(Facts):
                     ConcatSQL(
                         quote_column(c.es_column),
                         SQL_EQ,
-                        quote_value(get_if_type(v, c.jx_type)),
+                        quote_value(get_if_type(v, c.json_type)),
                     )
                     for c in self.schema.columns
-                    if c.jx_type != ARRAY and len(c.nested_path) == 1
+                    if c.json_type != ARRAY and len(c.nested_path) == 1
                     for v in [command.set[c.name]]
                     if v != None
                 ]
@@ -280,7 +280,7 @@ class InsertTable(Facts):
                     if (
                         c.name in clear_columns
                         and command.set[c.name] != None
-                        and c.jx_type != ARRAY
+                        and c.json_type != ARRAY
                         and len(c.nested_path) == 1
                     )
                 ]
@@ -312,7 +312,7 @@ class InsertTable(Facts):
         required_changes = []
         snowflake = self.container.get_or_create_facts(self.name).snowflake
 
-        def _flatten(doc, doc_path, nested_path, row, row_num, row_id, parent_id):
+        def _flatten(doc, doc_path, nested_path: NestedPath, row, row_num, row_id, parent_id):
             """
             :param doc: the data we are pulling apart
             :param doc_path: path to this (sub)doc
@@ -323,8 +323,8 @@ class InsertTable(Facts):
             :param parent_id: the parent id of this (sub)doc
             :return:
             """
-            curr_query_path = nested_path[0]
-            table_name = concat_field(self.name, curr_query_path)
+            table_name = nested_path[0]
+            curr_query_path = relative_field(table_name, self.name)
             insertion = doc_collection.setdefault(curr_query_path, Insertion())
 
             if is_data(doc):
@@ -334,19 +334,19 @@ class InsertTable(Facts):
                 items = [(".", doc)]
 
             for rel_name, v in items:
-                abs_name = concat_field(doc_path, rel_name)
-                jx_type = value_to_jx_type(v)
-                if jx_type is None:
+                abs_name = concat_field(nested_path[0], rel_name)
+                json_type = value_to_json_type(v)
+                if json_type is None:
                     continue
 
                 columns = (
                     snowflake.get_schema(nested_path).columns + insertion.active_columns
                 )
-                if jx_type == ARRAY:
+                if json_type == ARRAY:
                     curr_column = first(
                         cc
                         for cc in columns
-                        if cc.jx_type in STRUCT
+                        if cc.json_type in STRUCT
                         and untyped_column(cc.name)[0] == abs_name
                     )
                     if curr_column:
@@ -358,7 +358,7 @@ class InsertTable(Facts):
                     curr_column = first(
                         cc
                         for cc in columns
-                        if cc.jx_type == jx_type and cc.name == abs_name
+                        if cc.json_type == json_type and cc.name == abs_name
                     )
 
                 if not curr_column:
@@ -372,11 +372,11 @@ class InsertTable(Facts):
 
                     curr_column = Column(
                         name=abs_name,
-                        jx_type=jx_type,
-                        es_type=json_type_to_sqlite_type.get(jx_type, jx_type),
+                        json_type=json_type,
+                        es_type=json_type_to_sqlite_type.get(json_type, json_type),
                         es_column=typed_column(
-                            concat_field(nested_path[0], rel_name),
-                            json_type_to_sql_type_key.get(jx_type),
+                            rel_name,
+                            json_type_to_sql_type_key.get(json_type),
                         ),
                         es_index=table_name,
                         cardinality=0,
@@ -384,7 +384,7 @@ class InsertTable(Facts):
                         nested_path=nested_path,
                         last_updated=Date.now(),
                     )
-                    if jx_type == ARRAY:
+                    if json_type == ARRAY:
                         # NOTE: ADVANCE active_columns TO THIS NESTED LEVEL
                         # SCHEMA (AND DATABASE) WILL BE UPDATED LATER
                         deeper_insertion = doc_collection.setdefault(
@@ -405,19 +405,19 @@ class InsertTable(Facts):
 
                     insertion.active_columns.append(curr_column)
 
-                elif curr_column.jx_type == ARRAY and jx_type == OBJECT:
+                elif curr_column.json_type == ARRAY and json_type == OBJECT:
                     # ALWAYS PROMOTE OBJECTS TO NESTED
-                    jx_type = ARRAY
+                    json_type = ARRAY
                     v = [v]
                 elif len(curr_column.nested_path) < len(nested_path):
                     es_column = curr_column.es_column
                     # # required_changes.append({"nest": c})
                     # deeper_column = Column(
                     #     name=abs_name,
-                    #     jx_type=jx_type,
-                    #     es_type=json_type_to_sqlite_type.get(jx_type, jx_type),
+                    #     json_type=json_type,
+                    #     es_type=json_type_to_sqlite_type.get(json_type, json_type),
                     #     es_column=typed_column(
-                    #         abs_name, json_type_to_sql_type_key.get(jx_type)
+                    #         abs_name, json_type_to_sql_type_key.get(json_type)
                     #     ),
                     #     es_index=table_name,
                     #     nested_path=nested_path,
@@ -433,7 +433,7 @@ class InsertTable(Facts):
                         if es_column in r:
                             deeper_es_column = typed_column(
                                 concat_field(nested_path[0], rel_name),
-                                json_type_to_sql_type_key.get(jx_type),
+                                json_type_to_sql_type_key.get(json_type),
                             )
 
                             row1 = {
@@ -453,7 +453,7 @@ class InsertTable(Facts):
                     insertion.rows.append(row)
 
                 # BE SURE TO NEST VALUES, IF NEEDED
-                if jx_type == ARRAY:
+                if json_type == ARRAY:
                     for child_row_num, child_data in enumerate(v):
                         child_uid = self.container.next_uid()
                         child_row = {
@@ -466,13 +466,13 @@ class InsertTable(Facts):
                         _flatten(
                             doc=child_data,
                             doc_path=abs_name,
-                            nested_path=[curr_column.es_column] + nested_path,
+                            nested_path=[concat_field(self.name, curr_column.es_column)] + nested_path,
                             row=child_row,
                             row_num=child_row_num,
                             row_id=child_uid,
                             parent_id=row_id,
                         )
-                elif jx_type == OBJECT:
+                elif json_type == OBJECT:
                     _flatten(
                         doc=v,
                         doc_path=abs_name,
@@ -482,7 +482,7 @@ class InsertTable(Facts):
                         row_id=row_id,
                         parent_id=parent_id,
                     )
-                elif curr_column.jx_type:
+                elif curr_column.json_type:
                     row[curr_column.es_column] = v
 
         for doc in docs:
@@ -492,7 +492,7 @@ class InsertTable(Facts):
             _flatten(
                 doc=doc,
                 doc_path=".",
-                nested_path=["."],
+                nested_path=[self.name],
                 row=row,
                 row_num=0,
                 row_id=uid,
@@ -507,7 +507,7 @@ class InsertTable(Facts):
     def _insert(self, collection):
         for nested_path, insertion in collection.items():
             column_names = [
-                c.es_column for c in insertion.active_columns if c.jx_type != ARRAY
+                c.es_column for c in insertion.active_columns if c.json_type != ARRAY
             ]
             rows = insertion.rows
             table_name = concat_field(self.name, nested_path)

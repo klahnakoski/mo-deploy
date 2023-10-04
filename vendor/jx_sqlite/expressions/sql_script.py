@@ -7,59 +7,48 @@
 #
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
-from __future__ import absolute_import, division, unicode_literals
+
 
 from jx_base.expressions import (
-    FALSE,
-    SQLScript as SQLScript_,
-    TRUE,
-    Variable,
+    SqlScript as _SQLScript,
+    Expression,
 )
-from jx_base.language import is_op
-from jx_sqlite.expressions._utils import SQLang, check
-from jx_sqlite.sqlite import (
-    SQL,
-    SQL_CASE,
-    SQL_END,
-    SQL_NULL,
-    SQL_THEN,
-    SQL_WHEN,
-    sql_iso,
-    ConcatSQL,
-    SQL_NOT,
-)
-from mo_future import PY2, text
+from jx_base.models.schema import Schema
+from jx_sqlite.expressions._utils import check
+from mo_sqlite import SQL
 from mo_imports import export
-from mo_json import JsonType
+from mo_json import JxType
 from mo_logs import Log
 
 
-class SQLScript(SQLScript_, SQL):
-    __slots__ = ("data_type", "expr", "frum", "miss", "schema")
+class SqlScript(_SQLScript, SQL):
+    __slots__ = ("_data_type", "sql_expr", "frum", "schema")
 
-    def __init__(self, data_type, expr, frum, miss=None, schema=None):
+    def __init__(
+        self,
+        data_type: JxType,
+        expr: SQL,
+        frum: Expression,
+        schema: Schema
+    ):
         object.__init__(self)
         if expr == None:
             Log.error("expecting expr")
         if not isinstance(expr, SQL):
             Log.error("Expecting SQL")
-        if not isinstance(data_type, JsonType):
-            Log.error("Expecting JsonType")
+        if not isinstance(data_type, JxType):
+            Log.error("Expecting JxType")
         if schema is None:
             Log.error("expecting schema")
 
-        if miss is None:
-            self.miss = frum.missing(SQLang)
-        else:
-            self.miss = miss
-        self.data_type = data_type  # JSON DATA TYPE
-        self.expr = expr
+        self._data_type = data_type  # JSON DATA TYPE
+        self.sql_expr = expr
         self.frum = frum  # THE ORIGINAL EXPRESSION THAT MADE expr
         self.schema = schema
 
     @property
-    def type(self):
-        return self.data_type
+    def type(self) -> JxType:
+        return self._data_type
 
     @property
     def name(self):
@@ -78,38 +67,17 @@ class SQLScript(SQLScript_, SQL):
         """
         ASSUMED TO OVERRIDE SQL.__iter__()
         """
-        return self.sql.__iter__()
+        return self.sql_expr.__iter__()
 
     def to_sql(self, schema):
         return self
 
     @property
     def sql(self):
-        self.miss = self.miss.partial_eval(SQLang)
-        if self.miss is TRUE:
-            return SQL_NULL
-        elif self.miss is FALSE or is_op(self.frum, Variable):
-            return self.expr
-
-        missing = self.miss.partial_eval(SQLang).to_sql(self.schema)
-        return ConcatSQL(
-            SQL_CASE, SQL_WHEN, SQL_NOT, sql_iso(missing), SQL_THEN, self.expr, SQL_END,
-        )
+        return self.sql_expr
 
     def __str__(self):
         return str(self.sql)
-
-    def __unicode__(self):
-        return text(self.sql)
-
-    def __add__(self, other):
-        return text(self) + text(other)
-
-    def __radd__(self, other):
-        return text(other) + text(self)
-
-    if PY2:
-        __unicode__ = __str__
 
     @check
     def to_sql(self, schema):
@@ -122,13 +90,10 @@ class SQLScript(SQLScript_, SQL):
         return {"script": self.script}
 
     def __eq__(self, other):
-        if not isinstance(other, SQLScript_):
+        if not isinstance(other, _SQLScript):
             return False
-        elif self.expr == other.frum:
-            return True
-        else:
-            return False
+        return self.sql_expr == other.sql_expr
 
 
-export("jx_sqlite.expressions._utils", SQLScript)
-export("jx_sqlite.expressions.or_op", SQLScript)
+export("jx_sqlite.expressions._utils", SqlScript)
+export("jx_sqlite.expressions.or_op", SqlScript)

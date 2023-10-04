@@ -6,12 +6,15 @@
 # You can obtain one at http:# mozilla.org/MPL/2.0/.
 #
 
-from __future__ import absolute_import, division, unicode_literals
+
+
+from typing import List
 
 import jx_base
-from jx_sqlite.expressions._utils import SQL_ARRAY_KEY
+from jx_base.models.nested_path import NestedPath
 from jx_sqlite.models.schema import Schema
-from jx_sqlite.sqlite import (
+from jx_sqlite.models.table import Table
+from mo_sqlite import (
     SQL_FROM,
     SQL_SELECT,
     SQL_ZERO,
@@ -28,14 +31,15 @@ from jx_sqlite.sqlite import (
     TextSQL,
     SQL_INSERT,
 )
-from jx_sqlite.sqlite import quote_column
-from jx_sqlite.models.table import Table
+from mo_sqlite import quote_column
 from jx_sqlite.utils import (
     quoted_ORDER,
     quoted_PARENT,
     quoted_UID,
+    UID,
     GUID,
-    untype_field,
+    PARENT,
+    ORDER,
 )
 from mo_dots import (
     concat_field,
@@ -46,8 +50,10 @@ from mo_dots import (
     relative_field,
 )
 from mo_future import first
-from mo_json import ARRAY, OBJECT, EXISTS
+from mo_json import ARRAY, OBJECT, EXISTS, INTEGER
 from mo_logs import Log, Except
+from mo_sql.utils import SQL_ARRAY_KEY, untype_field
+from mo_times import Date
 
 
 class Snowflake(jx_base.Snowflake):
@@ -58,9 +64,9 @@ class Snowflake(jx_base.Snowflake):
     def __init__(self, fact_name, namespace):
         if not namespace.columns._snowflakes.get(fact_name):
             Log.error("{{name}} does not exist", name=fact_name)
-
         self.fact_name = fact_name  # THE CENTRAL FACT TABLE
         self.namespace = namespace
+        self.query_paths: List[NestedPath] = [[fact_name]]  # REVERSE DEPTH FIRST SEARCH
 
     def __copy__(self):
         Log.error("con not copy")
@@ -68,6 +74,12 @@ class Snowflake(jx_base.Snowflake):
     @property
     def container(self):
         return self.namespace.container
+
+    def get_relations(self):
+        """
+        RETURN ALL RELATIONS WITHIN THIS SNOWFLAKE
+        """
+        return self.namespace.get_relations()
 
     def change_schema(self, required_changes):
         """
@@ -84,11 +96,11 @@ class Snowflake(jx_base.Snowflake):
 
     def _add_column(self, column):
         cname = column.name
-        if column.jx_type == ARRAY:
+        if column.json_type == ARRAY:
             # WE ARE ALSO NESTING
             self._nest_column(column, [cname] + column.nested_path)
 
-        table = concat_field(self.fact_name, column.nested_path[0])
+        table = column.nested_path[0]
 
         try:
             with self.namespace.container.db.transaction() as t:
@@ -124,7 +136,7 @@ class Snowflake(jx_base.Snowflake):
     def _drop_column(self, column):
         # DROP COLUMN BY RENAMING IT, WITH __ PREFIX TO HIDE IT
         cname = column.name
-        if column.jx_type == "nested":
+        if column.json_type == ARRAY:
             # WE ARE ALSO NESTING
             self._nest_column(column, [cname] + column.nested_path)
 
@@ -143,9 +155,9 @@ class Snowflake(jx_base.Snowflake):
 
     def _nest_column(self, column):
         new_nest = column.es_column
+        existing_table = column.nested_path[0]
         destination_table = concat_field(self.fact_name, new_nest)
-        existing_table = concat_field(self.fact_name, column.nested_path[0])
-        if new_nest.endswith("$" + SQL_ARRAY_KEY):
+        if new_nest.endswith(SQL_ARRAY_KEY):
             old_column_prefix = join_field(split_field(new_nest)[:-1])
         else:
             raise Log.error("not expected")
@@ -170,6 +182,7 @@ class Snowflake(jx_base.Snowflake):
         data = self.namespace.container.db.about(destination_table)
         if not data:
             # DEFINE A NEW TABLE
+            now = Date.now()
             command = ConcatSQL(
                 SQL_CREATE,
                 quote_column(destination_table),
@@ -189,7 +202,39 @@ class Snowflake(jx_base.Snowflake):
             )
             with self.namespace.container.db.transaction() as t:
                 t.execute(command)
-                self.add_table([new_nest] + column.nested_path)
+                self.add_table([destination_table] + column.nested_path)
+            self.namespace.columns.add(jx_base.Column(
+                name=UID,
+                es_column=UID,
+                es_index=destination_table,
+                es_type="INTEGER",
+                json_type=INTEGER,
+                nested_path=[destination_table],
+                last_updated=now,
+                multi=0
+            ))
+            self.namespace.columns.add(jx_base.Column(
+                name=PARENT,
+                es_column=PARENT,
+                es_index=destination_table,
+                es_type="INTEGER",
+                json_type=INTEGER,
+                nested_path = [destination_table],
+                last_updated = now,
+                multi=0
+            ))
+            self.namespace.columns.add(jx_base.Column(
+                name=ORDER,
+                es_column=ORDER,
+                es_index=destination_table,
+                es_type="INTEGER",
+                json_type=INTEGER,
+                nested_path = [destination_table],
+                last_updated = now,
+                multi=0
+            ))
+            self.namespace.relations.extend(self.namespace.container.db.get_relations(destination_table))
+            self.namespace.columns.primary_keys[destination_table] = UID,
 
         # TEST IF THERE IS ANY DATA IN THE NEW NESTED ARRAY
         if not moving_columns:
@@ -276,35 +321,47 @@ class Snowflake(jx_base.Snowflake):
         """
         return [(path, concat_field(self.fact_name, path)) for path in self.query_paths]
 
-    def get_table(self, query_path):
+    def get_table(self, nested_path):
         """
-        RETURN TABLE FOR query_path (WITH SOME PATTERN MATCHING)
+        RETURN TABLE FOR ABSOLUTE nested_path (WITH SOME PATTERN MATCHING)
         """
-        path, type = untype_field(query_path)
+        abs_path, _ = \
+            untype_field(nested_path[0])
 
-        best = first(p for p in self.query_paths if untype_field(p)[0] == path)
+        best = first(p for p in self.query_paths if untype_field(p[0])[0] == abs_path)
         if not best:
-            Log.error("Can not find table with name {{table|quote}}", table=best)
-        nested_path = list(reversed(sorted(
-            p for p in self.query_paths if startswith_field(best, p)
-        )))
+            matching_table = first(
+                t for t in self.namespace.get_tables() if untype_field(t)[0] == abs_path
+            )
+            if matching_table:
+                # EXPAND THIS SNOWFLAKE TO INCLUDE THE REQUESTED PATH
+                best = [matching_table]
+                self.query_paths.insert(0, matching_table)
+            else:
+                Log.error("Can not find table with name {{table|quote}}", table=best)
 
-        return Table(nested_path, self)
+        return Table(best, self)
 
     def get_schema(self, nested_path):
+        if nested_path not in self.query_paths:
+            for i, q in enumerate(self.query_paths):
+                if startswith_field(nested_path[0], q[0]):
+                    self.query_paths = (
+                        self.query_paths[:i] + [nested_path] + self.query_paths[i:]
+                    )
+                    break
         return Schema(nested_path, self)
 
     @property
     def schema(self):
-        return Schema(["."], self)
+        """
+        RETURN THE FACT TABLE SCHEMA
+        """
+        return Schema([self.fact_name], self)
 
     @property
     def columns(self):
         return self.namespace.columns.find(self.fact_name)
-
-    @property
-    def query_paths(self):
-        return self.namespace.columns.get_query_paths(self.fact_name)
 
     def values(self, name):
         """
@@ -320,5 +377,5 @@ class Snowflake(jx_base.Snowflake):
             for c in self.namespace.columns.find(self.fact_name)
             for k in [c.name, c.es_column]
             if startswith_field(k, prefix) and k != GUID or k == prefix
-            if c.jx_type not in [OBJECT, EXISTS]
+            if c.json_type not in [OBJECT, EXISTS]
         )

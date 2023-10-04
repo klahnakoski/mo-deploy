@@ -171,7 +171,7 @@ def extractor(
         )
 
         with TempFile() as temp_file:
-            with open(temp_file.abs_path, "wb") as output:
+            with open(temp_file.abspath, "wb") as output:
                 for i in range(0, num_partitions):
                     if please_stop:
                         Log.error("request to shutdown!")
@@ -250,7 +250,7 @@ def upload(filename, temp_file):
             bucket = connection.get_bucket(BULK_CONFIG.s3.bucket, validate=False)
             storage = bucket.new_key(filename)
             storage.set_contents_from_filename(
-                temp_file.abs_path, headers={"Content-Type": mimetype.JSON}
+                temp_file.abspath, headers={"Content-Type": mimetype.JSON}
             )
             if BULK_CONFIG.s3.public:
                 storage.set_acl("public-read")

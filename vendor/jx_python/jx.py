@@ -8,24 +8,9 @@
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
 
-from __future__ import absolute_import, division, unicode_literals
 
 import mo_dots
 import mo_math
-from jx_base.models.container import Container
-from jx_base.expressions import FALSE, TRUE
-from jx_base.expressions import QueryOp
-from jx_base.expressions.query_op import _normalize_sort
-from jx_base.expressions.select_op import _normalize_selects
-from jx_base.language import is_op, value_compare
-from jx_python import expressions as _expressions, flat_list, group_by
-from jx_python.containers.cube import Cube
-from jx_python.containers.list import ListContainer
-from jx_python.convert import list2table, list2cube
-from jx_python.cubes.aggs import cube_aggs
-from jx_python.expression_compiler import compile_expression
-from jx_python.expressions import jx_expression_to_function as get
-from jx_python.flat_list import PartFlatList
 from mo_collections.index import Index
 from mo_collections.unique_index import UniqueIndex
 from mo_dots import (
@@ -38,13 +23,12 @@ from mo_dots import (
     is_list,
     is_many,
     join_field,
-    listwrap,
     set_default,
     split_field,
     to_data,
     dict_to_data,
     list_to_data,
-    from_data
+    from_data,
 )
 from mo_dots import _getdefault
 from mo_dots.objects import DataObject
@@ -52,6 +36,23 @@ from mo_future import is_text, sort_using_cmp
 from mo_imports import export
 from mo_logs import Log
 from mo_math import MIN, UNION
+
+from jx_base.expressions import FALSE, TRUE
+from jx_base.expressions import QueryOp
+from jx_base.expressions.query_op import _normalize_sort
+from jx_base.expressions.select_op import _normalize_selects
+from jx_base.language import is_op, value_compare
+from jx_base.models.container import Container
+from jx_base.utils import enlist
+from jx_python import expressions as _expressions, flat_list, group_by
+from jx_python.containers.cube import Cube
+from jx_python.containers.list import ListContainer
+from jx_python.convert import list2table, list2cube
+from jx_python.cubes.aggs import cube_aggs
+from jx_python.expressions import jx_expression_to_function as get
+from jx_python.flat_list import PartFlatList
+from jx_python.streams.expression_compiler import compile_expression
+from jx_python.utils import wrap_function as _wrap_function
 
 # A COLLECTION OF DATABASE OPERATORS (RELATIONAL ALGEBRA OPERATORS)
 # JSON QUERY EXPRESSION DOCUMENTATION: https://github.com/klahnakoski/jx/tree/master/docs
@@ -74,9 +75,7 @@ def run(query, container=Null):
         container = to_data(query)["from"]
         query_op = QueryOp.wrap(query, container=container, namespace=container.schema)
     else:
-        query_op = QueryOp.wrap(
-            query, container=container, namespace=container.namespace
-        )
+        query_op = QueryOp.wrap(query, container=container, namespace=container.namespace)
 
     if container == None:
         from jx_python.containers.list import DUAL
@@ -96,9 +95,7 @@ def run(query, container=Null):
         container = query["from"]
         container = run(QueryOp.wrap(query, container, container.namespace), container)
     else:
-        Log.error(
-            "Do not know how to handle {{type}}", type=container.__class__.__name__
-        )
+        Log.error("Do not know how to handle {{type}}", type=container.__class__.__name__)
 
     if is_aggs(query_op):
         container = list_aggs(container, query_op)
@@ -145,9 +142,7 @@ def index(data, keys=None):
             names = list(data.data.keys())
             for d in (
                 set_default(mo_dots.zip(names, r), {keys[0]: p})
-                for r, p in zip(
-                    zip(*data.data.values()), data.edges[0].domain.partitions.value
-                )
+                for r, p in zip(zip(*data.data.values()), data.edges[0].domain.partitions.value)
             ):
                 o.add(d)
             return o
@@ -164,7 +159,7 @@ def unique_index(data, keys=None, fail_on_dup=True):
     RETURN dict THAT USES KEYS TO INDEX DATA
     ONLY ONE VALUE ALLOWED PER UNIQUE KEY
     """
-    o = UniqueIndex(listwrap(keys), fail_on_dup=fail_on_dup)
+    o = UniqueIndex(enlist(keys), fail_on_dup=fail_on_dup)
 
     for d in data:
         try:
@@ -172,8 +167,7 @@ def unique_index(data, keys=None, fail_on_dup=True):
         except Exception as e:
             o.add(d)
             Log.error(
-                "index {{index}} is not unique {{key}} maps to both {{value1}} and"
-                " {{value2}}",
+                "index {{index}} is not unique {{key}} maps to both {{value1}} and {{value2}}",
                 index=keys,
                 key=select([d], keys)[0],
                 value1=o[d],
@@ -401,9 +395,7 @@ def _select_deep(v, field, depth, record):
         else:
             record[field.name] = v.get(f)
     except Exception as e:
-        Log.error(
-            "{{value}} does not have {{field}} property", value=v, field=f, cause=e
-        )
+        Log.error("{{value}} does not have {{field}} property", value=v, field=f, cause=e)
     return 0, None
 
 
@@ -449,10 +441,7 @@ def _select_deep_meta(field, depth):
                     destination[name] = source.get(f)
             except Exception as e:
                 Log.error(
-                    "{{value}} does not have {{field}} property",
-                    value=source,
-                    field=f,
-                    cause=e,
+                    "{{value}} does not have {{field}} property", value=source, field=f, cause=e,
                 )
             return 0, None
 
@@ -473,10 +462,7 @@ def _select_deep_meta(field, depth):
                     destination[name] = source.get(f)
                 except Exception as e:
                     Log.error(
-                        "{{value}} does not have {{field}} property",
-                        value=source,
-                        field=f,
-                        cause=e,
+                        "{{value}} does not have {{field}} property", value=source, field=f, cause=e,
                     )
                 return 0, None
 
@@ -488,10 +474,7 @@ def get_columns(data, leaves=False):
     if not leaves:
         return list_to_data([{"name": n} for n in UNION(set(d.keys()) for d in data)])
     else:
-        return to_data([
-            {"name": leaf}
-            for leaf in set(leaf for row in data for leaf, _ in row.leaves())
-        ])
+        return to_data([{"name": leaf} for leaf in set(leaf for row in data for leaf, _ in row.leaves())])
 
 
 _ = """
@@ -531,8 +514,8 @@ def _deeper_iterator(columns, nested_path, path, data):
             c = columns.get(leaf)
             if not c:
                 c = columns[leaf] = _Column(name=leaf, type=type_to_name[v.__class__], table=None, es_column=leaf)
-            c.jx_type = _merge_type[c.jx_type][type_to_name[v.__class__]]
-            if c.jx_type == "nested" and not nested_path[0].startswith(leaf + "."):
+            c.json_type = _merge_type[c.json_type][type_to_name[v.__class__]]
+            if c.json_type == "nested" and not nested_path[0].startswith(leaf + "."):
                 if leaf.startswith(nested_path[0] + ".") or leaf == nested_path[0] or not nested_path[0]:
                     nested_path[0] = leaf
                 else:
@@ -547,7 +530,7 @@ def _deeper_iterator(columns, nested_path, path, data):
                 for o in _deeper_iterator(columns, nested_path, leaf, [v]):
                     set_default(output, o)
             else:
-                if c.jx_type not in ["object", "nested"]:
+                if c.json_type not in ["object", "nested"]:
                     output[leaf] = v
 
         if deep_leaf:
@@ -592,9 +575,7 @@ def sort(data, fieldnames=None, already_normalized=False):
         if is_text(data):
             raise Log.error("Do not know how to handle")
         elif is_many(data):
-            output = list_to_data([
-                d for d in sort_using_cmp((from_data(d) for d in data), cmp=comparer)
-            ])
+            output = list_to_data([d for d in sort_using_cmp((from_data(d) for d in data), cmp=comparer)])
         else:
             raise Log.error("Do not know how to handle")
 
@@ -668,21 +649,15 @@ def filter(data, where):
     if is_container(data):
         temp = get(where)
         dd = to_data(data)
-        return list_to_data([
-            from_data(d) for i, d in enumerate(data) if temp(to_data(d), i, dd)
-        ])
+        return list_to_data([from_data(d) for i, d in enumerate(data) if temp(to_data(d), i, dd)])
     else:
-        Log.error(
-            "Do not know how to handle type {{type}}", type=data.__class__.__name__
-        )
+        Log.error("Do not know how to handle type {{type}}", type=data.__class__.__name__)
 
     try:
         return drill_filter(where, data)
     except Exception as _:
         # WOW!  THIS IS INEFFICIENT!
-        return to_data([
-            from_data(d) for d in drill_filter(where, [DataObject(d) for d in data])
-        ])
+        return to_data([from_data(d) for d in drill_filter(where, [DataObject(d) for d in data])])
 
 
 def drill(data, path):
@@ -700,7 +675,7 @@ def drill(data, path):
                     for v in _drill(dd, p):
                         yield v
             else:
-                for v in _drill(listwrap(d[p[0]]), p[1:]):
+                for v in _drill(enlist(d[p[0]]), p[1:]):
                     yield v
         elif is_many(d):
             for dd in d:
@@ -992,27 +967,7 @@ def wrap_function(func):
     if is_text(func):
         return compile_expression(func)
 
-    numarg = func.__code__.co_argcount
-    if numarg == 0:
-
-        def temp(row, rownum, rows):
-            return func()
-
-        return temp
-    elif numarg == 1:
-
-        def temp(row, rownum, rows):
-            return func(row)
-
-        return temp
-    elif numarg == 2:
-
-        def temp(row, rownum, rows):
-            return func(row, rownum)
-
-        return temp
-    elif numarg == 3:
-        return func
+    return _wrap_function(func)
 
 
 def window(data, param):
@@ -1146,5 +1101,4 @@ def countdown(vals):
 from jx_python.lists.aggs import is_aggs, list_aggs
 
 
-export("jx_base.models.container", run)
 export("jx_python.containers.list", "jx")

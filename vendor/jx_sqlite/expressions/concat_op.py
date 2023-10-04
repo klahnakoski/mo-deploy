@@ -7,26 +7,22 @@
 #
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
-from __future__ import absolute_import, division, unicode_literals
+
 
 from jx_base.expressions.null_op import NULL
-
-from jx_base.expressions.literal import Literal
 
 from jx_base.expressions import (
     ConcatOp as ConcatOp_,
     TrueOp,
-    is_literal,
     ToTextOp,
     AddOp,
-    AndOp,
-    MissingOp,
     ONE,
 )
+from jx_base.language import is_op
 from jx_sqlite.expressions._utils import SQLang, check
 from jx_sqlite.expressions.length_op import LengthOp
-from jx_sqlite.expressions.sql_script import SQLScript
-from jx_sqlite.sqlite import (
+from jx_sqlite.expressions.sql_script import SqlScript
+from mo_sqlite import (
     SQL_CASE,
     SQL_ELSE,
     SQL_EMPTY_STRING,
@@ -37,8 +33,8 @@ from jx_sqlite.sqlite import (
     sql_concat_text,
     ConcatSQL,
 )
-from jx_sqlite.sqlite import sql_call
-from mo_json import T_TEXT
+from mo_sqlite import sql_call
+from mo_json import JX_TEXT
 
 
 class ConcatOp(ConcatOp_):
@@ -66,7 +62,7 @@ class ConcatOp(ConcatOp_):
             else:
                 sep_term = sql_iso(sql_concat_text([sep, term]))
 
-            if isinstance(missing, TrueOp):
+            if is_op(missing, TrueOp):
                 acc.append(SQL_EMPTY_STRING)
             elif missing:
                 acc.append(ConcatSQL(
@@ -94,10 +90,9 @@ class ConcatOp(ConcatOp_):
                 .frum,
             )
 
-        return SQLScript(
-            data_type=T_TEXT,
+        return SqlScript(
+            data_type=JX_TEXT,
             expr=sql,
             frum=self,
-            miss=AndOp([MissingOp(t) for t in self.terms]),
             schema=schema,
         )

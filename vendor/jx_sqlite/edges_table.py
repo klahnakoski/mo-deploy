@@ -9,7 +9,7 @@
 #
 
 
-from __future__ import absolute_import, division, unicode_literals
+
 
 import mo_math
 from jx_base.expressions import (
@@ -20,19 +20,14 @@ from jx_base.expressions import (
     FALSE,
     SelectOp,
     WhenOp,
-    CaseOp, CountOp, PercentileOp, CardinalityOp, OrOp, AndOp, UnionOp, MaxOp,
-)
+    CaseOp, CountOp, PercentileOp, CardinalityOp, OrOp, AndOp, UnionOp, )
 from jx_base.language import is_op
 from jx_python import jx
-from jx_sqlite.expressions._utils import (
-    SQLang,
-    sql_type_key_to_json_type,
-)
+from jx_sqlite.expressions._utils import SQLang
 from jx_sqlite.expressions.tuple_op import TupleOp
 from jx_sqlite.expressions.variable import Variable
 from jx_sqlite.setop_table import SetOpTable
-from jx_sqlite.sqlite import *
-from jx_sqlite.sqlite import quote_column, quote_value, sql_alias
+from mo_sqlite import quote_column, quote_value, sql_alias
 from jx_sqlite.utils import (
     ColumnMapping,
     STATS,
@@ -40,7 +35,6 @@ from jx_sqlite.utils import (
     get_column,
     sql_aggs,
     sql_text_array_to_set,
-    untyped_column,
     PARENT,
     UID,
     DIGITS_TABLE,
@@ -56,10 +50,11 @@ from mo_dots import (
 )
 from mo_future import text
 from mo_json import (
-    NUMBER, T_BOOLEAN,
-    json_type_to_simple_type,
+    NUMBER, JX_BOOLEAN,
+    jx_type_to_json_type,
 )
 from mo_logs import Log
+from mo_sql.utils import untyped_column, sql_type_key_to_json_type
 
 EXISTS_COLUMN = quote_column("__exists__")
 
@@ -239,7 +234,7 @@ class EdgesTable(SetOpTable):
                             num_push_columns=len(query_edge.value.terms),
                             push_column_child=i,
                             pull=get_pull_func(column_index + i),
-                            type=json_type_to_simple_type(term.type),
+                            type=jx_type_to_json_type(term.type),
                             sql=FALSE.to_sql(schema),
                             column_alias=get_domain_alias(column_index + i),
                         )
@@ -289,7 +284,7 @@ class EdgesTable(SetOpTable):
                             push_column_index=edge_index,
                             push_column_child=term["name"],
                             pull=get_pull_func(column_index + i),
-                            type=json_type_to_simple_type(term.type),
+                            type=jx_type_to_json_type(term.type),
                             sql=FALSE.to_sql(schema),
                             column_alias=get_domain_alias(column_index + i),
                         )
@@ -601,7 +596,7 @@ class EdgesTable(SetOpTable):
                     pull=get_column(column_number, None, s.aggregate.default.value),
                     sql=sql,
                     column_alias=_make_column_name(column_number),
-                    type=sql_type_key_to_json_type["n"],
+                    type=NUMBER,
                 )
             elif is_op(s.aggregate, PercentileOp):
                 raise NotImplementedError()
@@ -635,7 +630,7 @@ class EdgesTable(SetOpTable):
                     push_column_name=s.name,
                     push_column_index=si,
                     push_column_child=".",
-                    pull=get_column(column_number, T_BOOLEAN, s.aggregate.default.value),
+                    pull=get_column(column_number, JX_BOOLEAN, s.aggregate.default.value),
                     sql=sql,
                     column_alias=_make_column_name(column_number),
                     type=BOOLEAN
@@ -652,7 +647,7 @@ class EdgesTable(SetOpTable):
                     push_column_name=s.name,
                     push_column_index=si,
                     push_column_child=".",
-                    pull=get_column(column_number, T_BOOLEAN, s.aggregate.default.value),
+                    pull=get_column(column_number, JX_BOOLEAN, s.aggregate.default.value),
                     sql=sql,
                     column_alias=_make_column_name(column_number),
                     type=BOOLEAN
@@ -696,7 +691,7 @@ class EdgesTable(SetOpTable):
             else:  # STANDARD AGGREGATES
                 sql = s.value.partial_eval(SQLang).to_sql(schema)
                 sql = sql_call(sql_aggs[s.aggregate.op], sql)
-                data_type = json_type_to_simple_type(s.aggregate.type)
+                data_type = jx_type_to_json_type(s.aggregate.type)
 
                 if s.aggregate.default is not NULL:
                     sql = sql_coalesce([sql, s.aggregate.default.to_sql(schema)])

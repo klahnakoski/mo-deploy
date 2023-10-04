@@ -7,7 +7,7 @@
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
 
-from __future__ import absolute_import, division, unicode_literals
+
 
 import types
 from copy import deepcopy
@@ -18,15 +18,8 @@ from mo_imports import expect, delay_import
 from mo_dots.utils import CLASS, SLOT
 
 Log = delay_import("mo_logs.Log")
-datawrap, coalesce, list_to_data, to_data, from_data, Null, EMPTY, hash_value = expect(
-    "datawrap",
-    "coalesce",
-    "list_to_data",
-    "to_data",
-    "from_data",
-    "Null",
-    "EMPTY",
-    "hash_value",
+object_to_data, datawrap, coalesce, list_to_data, to_data, from_data, Null, EMPTY, hash_value = expect(
+    "object_to_data", "datawrap", "coalesce", "list_to_data", "to_data", "from_data", "Null", "EMPTY", "hash_value",
 )
 
 _null_hash = hash(None)
@@ -60,9 +53,7 @@ class FlatList(object):
         if _get(index, CLASS) is slice:
             # IMPLEMENT FLAT SLICES (for i not in range(0, len(self)): assert self[i]==None)
             if index.step is not None:
-                Log.error(
-                    "slice step must be None, do not know how to deal with values"
-                )
+                Log.error("slice step must be None, do not know how to deal with values")
             length = len(_get(self, SLOT))
 
             i = index.start
@@ -112,7 +103,7 @@ class FlatList(object):
             output = []
             for v in _get(self, SLOT):
                 if is_many(v):
-                    element = from_data(datawrap(v).get(key))
+                    element = from_data(object_to_data(v).get(key))
                     output.extend(element)
                 else:
                     output.append(from_data(v))
@@ -120,7 +111,7 @@ class FlatList(object):
             return list_to_data(output)
         output = []
         for v in _get(self, SLOT):
-            element = datawrap(v).get(key)
+            element = object_to_data(v).get(key)
             if element.__class__ == FlatList:
                 output.extend(from_data(element))
             else:
@@ -131,9 +122,16 @@ class FlatList(object):
         Log.error("Not supported.  Use `get()`")
 
     def filter(self, _filter):
-        return list_to_data([
-            from_data(u) for u in _get(self, SLOT) if _filter(to_data(u))
-        ])
+        return list_to_data([from_data(u) for u in _get(self, SLOT) if _filter(to_data(u))])
+
+    def map(self, oper, includeNone=True):
+        if includeNone:
+            return FlatList([oper(v) for v in _get(self, SLOT)])
+        else:
+            return FlatList([oper(v) for v in _get(self, SLOT) if v != None])
+
+    def to_list(self):
+        return _get(self, SLOT)
 
     def __delitem__(self, i):
         del _get(self, SLOT)[i]
@@ -153,7 +151,10 @@ class FlatList(object):
         return self
 
     def __str__(self):
-        return _get(self, SLOT).__str__()
+        return str(_get(self, SLOT))
+
+    def __repr__(self):
+        return f"to_data({repr(_get(self, SLOT))})"
 
     def __len__(self):
         return _get(self, SLOT).__len__()
@@ -290,12 +291,6 @@ class FlatList(object):
         if lst:
             return to_data(lst[-1])
         return Null
-
-    def map(self, oper, includeNone=True):
-        if includeNone:
-            return FlatList([oper(v) for v in _get(self, SLOT)])
-        else:
-            return FlatList([oper(v) for v in _get(self, SLOT) if v != None])
 
 
 def last(values):

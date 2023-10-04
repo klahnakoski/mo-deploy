@@ -8,21 +8,20 @@
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
 
-from __future__ import absolute_import, division, unicode_literals
 
 from jx_base.expressions.expression import Expression
 from jx_base.expressions.false_op import FALSE
 from jx_base.expressions.true_op import TRUE
 from jx_base.language import is_op
 from mo_imports import expect, export
-from mo_json.types import T_BOOLEAN
+from mo_json.types import JX_BOOLEAN
 
 NotOp, OrOp, ToBooleanOp = expect("NotOp", "OrOp", "ToBooleanOp")
 
 
 class AndOp(Expression):
-    data_type = T_BOOLEAN
-    default = TRUE  # ADD THIS TO terms FOR NO EEFECT
+    _data_type = JX_BOOLEAN
+    default = TRUE  # ADD THIS TO terms FOR NO EFFECT
 
     def __init__(self, *terms):
         Expression.__init__(self, *terms)
@@ -39,9 +38,7 @@ class AndOp(Expression):
 
     def __eq__(self, other):
         if is_op(other, AndOp):
-            return all(o in self.terms for o in other.terms) and all(
-                s in other.terms for s in self.terms
-            )
+            return all(o in self.terms for o in other.terms) and all(s in other.terms for s in self.terms)
         return False
 
     def __rcontains__(self, superset):
@@ -54,13 +51,13 @@ class AndOp(Expression):
         return output
 
     def map(self, map_):
-        return AndOp([t.map(map_) for t in self.terms])
+        return AndOp(*(t.map(map_) for t in self.terms))
 
     def missing(self, lang):
         return FALSE
 
     def invert(self, lang):
-        return OrOp([t.invert(lang) for t in self.terms]).partial_eval(lang)
+        return OrOp(*(t.invert(lang) for t in self.terms)).partial_eval(lang)
 
     def partial_eval(self, lang):
         # MERGE IDENTICAL NESTED QUERIES
@@ -105,12 +102,11 @@ class AndOp(Expression):
             elif len(and_terms) == 1:
                 return and_terms[0]
             else:
-                return AndOp(and_terms)
+                return AndOp(*and_terms)
 
-        return OrOp([
-            AndOp(and_terms) if len(and_terms) > 1 else and_terms[0]
-            for and_terms in or_terms
-        ]).partial_eval(lang)
+        return OrOp(
+            *(AndOp(*and_terms) if len(and_terms) > 1 else and_terms[0] for and_terms in or_terms)
+        ).partial_eval(lang)
 
 
 export("jx_base.expressions.expression", AndOp)

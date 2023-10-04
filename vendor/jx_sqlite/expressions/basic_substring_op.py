@@ -7,16 +7,16 @@
 #
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
-from __future__ import absolute_import, division, unicode_literals
 
-from jx_base.expressions import BasicSubstringOp as BasicSubstringOp_, FALSE
+
+from jx_base.expressions import BasicSubstringOp as BasicSubstringOp_
 from jx_sqlite.expressions._utils import SQLang, check
 from jx_sqlite.expressions.add_op import AddOp
 from jx_sqlite.expressions.literal import Literal
-from jx_sqlite.expressions.sql_script import SQLScript
+from jx_sqlite.expressions.sql_script import SqlScript
 from jx_sqlite.expressions.sub_op import SubOp
-from jx_sqlite.sqlite import sql_call
-from mo_json import T_TEXT
+from mo_sqlite import sql_call
+from mo_json import JX_TEXT
 
 
 class BasicSubstringOp(BasicSubstringOp_):
@@ -26,6 +26,6 @@ class BasicSubstringOp(BasicSubstringOp_):
         start = AddOp([self.start, Literal(1)]).partial_eval(SQLang).to_sql(schema)
         length = SubOp([self.end, self.start]).partial_eval(SQLang).to_sql(schema)
         sql = sql_call("SUBSTR", value.frum, start.frum, length.frum)
-        return SQLScript(
-            data_type=T_TEXT, expr=sql, frum=self, miss=FALSE, schema=schema
+        return SqlScript(
+            data_type=JX_TEXT, expr=sql, frum=self, schema=schema
         )

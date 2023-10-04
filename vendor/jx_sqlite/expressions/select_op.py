@@ -7,13 +7,17 @@
 #
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
-from __future__ import absolute_import, division, unicode_literals
 
-from jx_base.expressions import SelectOp as SelectOp_, LeavesOp, Variable, AndOp, NULL
+
+from dataclasses import dataclass
+from typing import List
+
+from jx_base.expressions import SelectOp as SelectOp_, LeavesOp, Variable, NULL
+from jx_base.expressions.variable import get_variable
 from jx_base.language import is_op
-from jx_sqlite.expressions._utils import check, SQLang
-from jx_sqlite.expressions.sql_script import SQLScript
-from jx_sqlite.sqlite import (
+from jx_sqlite.expressions._utils import check
+from jx_sqlite.expressions.sql_script import SqlScript
+from mo_sqlite import (
     quote_column,
     SQL_COMMA,
     SQL_AS,
@@ -23,103 +27,76 @@ from jx_sqlite.sqlite import (
     ENABLE_TYPE_CHECKING, SQL_CR,
 )
 from mo_dots import concat_field, literal_field
-from mo_json.types import to_json_type, T_IS_NULL
+from mo_json.types import to_jx_type, JX_IS_NULL
+from mo_sql import ConcatSQL, SQL_FROM, sql_iso
 
 
 class SelectOp(SelectOp_):
     @check
     def to_sql(self, schema):
-        type = T_IS_NULL
+        frum_sql = self.frum.to_sql(schema)
+        schema = frum_sql.schema
+
+        type = JX_IS_NULL
         sql_terms = []
         diff = False
-        for name, expr, agg in self:
+        for name, expr in self:
+            expr = get_variable(expr)
+
             if is_op(expr, Variable):
                 var_name = expr.var
-                cols = list(schema.leaves(var_name))
+                cols = schema.leaves(var_name)
                 if len(cols) == 0:
-                    sql_terms.append({
-                        "name": name,
-                        "value": NULL,
-                        "aggregate": agg,
-                    })
+                    sql_terms.append(SelectOneSQL(name, NULL.to_sql(schema)))
                     continue
-                elif len(cols) == 1:
-                    rel_name0, col0 = cols[0]
-                    if col0.es_column == var_name:
-                        # WHEN WE REQUEST AN ES_COLUMN DIRECTLY, BREAK THE RECURSIVE LOOP
-                        full_name = concat_field(name, rel_name0)
-                        type |= full_name + to_json_type(col0.jx_type)
-                        sql_terms.append({
-                            "name": full_name,
-                            "value": expr,
-                            "aggregate": agg,
-                        })
-                        continue
-
-                diff = True
-                for rel_name, col in cols:
-                    full_name = concat_field(name, rel_name)
-                    type |= full_name + to_json_type(col.jx_type)
-                    sql_terms.append({
-                        "name": full_name,
-                        "value": Variable(col.es_column, col.jx_type),
-                        "aggregate": agg,
-                    })
+                else:
+                    for rel_name, col in cols:
+                        full_name = concat_field(name, rel_name)
+                        type |= full_name + to_jx_type(col.json_type)
+                        sql_terms.append(SelectOneSQL(full_name, Variable(col.es_column, col.json_type).to_sql(schema)))
             elif is_op(expr, LeavesOp):
                 var_names = expr.term.vars()
                 for var_name in var_names:
                     cols = schema.leaves(var_name)
-                    diff = True
                     for rel_name, col in cols:
                         full_name = concat_field(name,  literal_field(rel_name))
-                        type |= full_name + to_json_type(col.jx_type)
-                        sql_terms.append({
-                            "name": full_name,
-                            "value": Variable(col.es_column, col.jx_type),
-                            "aggregate": agg
-                        })
+                        type |= full_name + to_jx_type(col.json_type)
+                        sql_terms.append(SelectOneSQL(full_name, Variable(col.es_column, col.json_type).to_sql(schema)))
             else:
-                type |= name + to_json_type(expr.type)
-                sql_terms.append({
-                    "name": name,
-                    "value": expr,
-                    "aggregate": agg,
-                })
+                type |= name + to_jx_type(expr.type)
+                sql_terms.append(SelectOneSQL(name, expr.to_sql(schema)))
 
-        if diff:
-            return SelectOp(schema, *sql_terms).partial_eval(SQLang).to_sql(schema)
-
-        return SQLScript(
+        return SqlScript(
             data_type=type,
-            expr=SelectSQL(sql_terms, schema),
-            miss=AndOp([t["value"].missing(SQLang) for t in sql_terms]),
+            expr=ConcatSQL(SelectSQL(sql_terms), SQL_FROM, sql_iso(frum_sql)),
             frum=self,
             schema=schema,
         )
 
 
-class SelectSQL(SQL):
-    __slots__ = ["terms", "schema"]
+@dataclass
+class SelectOneSQL(SQL):
+    name: str
+    value: SqlScript
 
-    def __init__(self, terms, schema):
+
+class SelectSQL(SQL):
+    __slots__ = ["terms"]
+
+    def __init__(self, terms : List[SelectOneSQL]):
         if ENABLE_TYPE_CHECKING:
-            if not isinstance(terms, list) or not all(isinstance(term, dict) for term in terms):
-                Log.error("expecting list of dicts")
+            if not isinstance(terms, list) or any(not isinstance(term, SelectOneSQL) for term in terms):
+                Log.error("expecting list of SelectOne")
         self.terms = terms
-        self.schema = schema
 
     def __iter__(self):
         for s in SQL_SELECT:
             yield s
         comma = SQL_CR
         for term in self.terms:
-            name, value = term["name"], term["value"]
-            for s in comma:
-                yield s
+            name, value = term.name, term.value
+            yield from comma
             comma = SQL_COMMA
-            for s in value.to_sql(self.schema):
-                yield s
-            for s in SQL_AS:
-                yield s
-            for s in quote_column(name):
-                yield s
+            yield from value
+            yield from SQL_AS
+            yield from quote_column(name)

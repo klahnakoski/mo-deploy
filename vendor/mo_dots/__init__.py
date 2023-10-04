@@ -7,7 +7,7 @@
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
 
-from __future__ import absolute_import, division, unicode_literals
+
 
 import re
 import sys
@@ -22,7 +22,7 @@ from mo_dots.lists import (
     list_types,
     container_types,
     finite_types,
-    last
+    last,
 )
 from mo_dots.nones import Null, NullType
 from mo_dots.objects import DataObject
@@ -32,7 +32,8 @@ from mo_future import (
     generator_types,
     text,
     OrderedDict,
-    none_type, flatten,
+    none_type,
+    flatten,
     first,
 )
 from mo_imports import export
@@ -152,9 +153,7 @@ def split_field(field):
     if field.startswith(".."):
         remainder = field.lstrip(".")
         back = len(field) - len(remainder) - 1
-        return [".."] * back + [
-            UNESCAPE_DOTS.sub(".", k) for k in SPLIT_DOTS.split(remainder) if k
-        ]
+        return [".."] * back + [UNESCAPE_DOTS.sub(".", k) for k in SPLIT_DOTS.split(remainder) if k]
     else:
         return [UNESCAPE_DOTS.sub(".", k) for k in SPLIT_DOTS.split(field) if k]
 
@@ -179,11 +178,7 @@ def join_field(path):
             else:
                 path = path[: i - 1] + path[i + 1 :]
         except ValueError:
-            return (
-                ("." if prefix else "")
-                + prefix
-                + ".".join(literal_field(f) for f in path)
-            )
+            return ("." if prefix else "") + prefix + ".".join(literal_field(f) for f in path)
 
 
 def concat_field(*fields):
@@ -207,7 +202,7 @@ def startswith_field(field, prefix):
 
     if field.startswith(prefix):
         lp = len(prefix)
-        if len(field) == len(prefix) or field[lp] in (".", "\b") and field[lp+1] not in (".", "\b"):
+        if len(field) == len(prefix) or field[lp] in (".", "\b") and field[lp + 1] not in (".", "\b"):
             return True
     return False
 
@@ -281,7 +276,7 @@ def set_default(d, *dicts):
     """
     agg = d if d or _get(d, CLASS) in data_types else {}
     for p in dicts:
-        _set_default(agg, from_data(p), seen={})
+        _set_default(agg, p, seen={})
     return to_data(agg)
 
 
@@ -294,7 +289,7 @@ def _set_default(d, default, seen=None):
         return
 
     for k, default_value in default.items():
-        default_value = from_data(default_value)  # TWO DIFFERENT Dicts CAN SHARE id() BECAUSE THEY ARE SHORT LIVED
+        raw_value = from_data(default_value)  # TWO DIFFERENT Dicts CAN SHARE id() BECAUSE THEY ARE SHORT LIVED
         if is_data(d):
             existing_value = d.get(k)
         else:
@@ -303,12 +298,12 @@ def _set_default(d, default, seen=None):
         if existing_value == None:
             if default_value != None:
                 if _get(default_value, CLASS) in data_types:
-                    df = seen.get(id(default_value))
+                    df = seen.get(id(raw_value))
                     if df is not None:
                         _set_attr(d, [k], df)
                     else:
                         copy_dict = {}
-                        seen[id(default_value)] = copy_dict
+                        seen[id(raw_value)] = copy_dict
                         _set_attr(d, [k], copy_dict)
                         _set_default(copy_dict, default_value, seen)
                 else:
@@ -317,21 +312,18 @@ def _set_default(d, default, seen=None):
                         _set_attr(d, [k], default_value)
                     except Exception as e:
                         if PATH_NOT_FOUND not in e:
-                            get_logger().error(
-                                "Can not set attribute {{name}}", name=k, cause=e
-                            )
+                            get_logger().error("Can not set attribute {{name}}", name=k, cause=e)
         elif is_list(existing_value) or is_list(default_value):
             _set_attr(d, [k], None)
             _set_attr(d, [k], listwrap(existing_value) + listwrap(default_value))
-        elif (
-            hasattr(existing_value, "__setattr__")
-            or _get(existing_value, CLASS) in data_types
-        ) and _get(default_value, CLASS) in data_types:
-            df = seen.get(id(default_value))
+        elif (hasattr(existing_value, "__setattr__") or _get(existing_value, CLASS) in data_types) and _get(
+            default_value, CLASS
+        ) in data_types:
+            df = seen.get(id(raw_value))
             if df is not None:
                 _set_attr(d, [k], df)
             else:
-                seen[id(default_value)] = existing_value
+                seen[id(raw_value)] = existing_value
                 _set_default(existing_value, default_value, seen)
 
 
@@ -396,7 +388,7 @@ def get_attr(obj, path):
         return _get_attr(obj, split_field(path))
     except Exception as cause:
         Log = get_logger()
-        if PATH_NOT_FOUND in e:
+        if PATH_NOT_FOUND in cause:
             Log.error(PATH_NOT_FOUND + ": {{path}}", path=path, cause=cause)
         else:
             Log.error("Problem setting value", cause=cause)
@@ -426,21 +418,13 @@ def _get_attr(obj, path):
                 if len(path) == 1:
                     # GET MODULE OBJECT
                     output = __import__(
-                        obj.__name__ + str(".") + str(attr_name),
-                        globals(),
-                        locals(),
-                        [str(attr_name)],
-                        0,
+                        obj.__name__ + str(".") + str(attr_name), globals(), locals(), [str(attr_name)], 0,
                     )
                     return output
                 else:
                     # GET VARIABLE IN MODULE
                     output = __import__(
-                        obj.__name__ + str(".") + str(attr_name),
-                        globals(),
-                        locals(),
-                        [str(path[1])],
-                        0,
+                        obj.__name__ + str(".") + str(attr_name), globals(), locals(), [str(path[1])], 0,
                     )
                     return _get_attr(output, path[1:])
             except Exception as e:
@@ -451,9 +435,7 @@ def _get_attr(obj, path):
         matched_attr_name = lower_match(attr_name, dir(obj))
         if not matched_attr_name:
             get_logger().warning(
-                PATH_NOT_FOUND + "({{name|quote}}) Returning None.",
-                name=attr_name,
-                cause=possible_error,
+                PATH_NOT_FOUND + "({{name|quote}}) Returning None.", name=attr_name, cause=possible_error,
             )
         elif len(matched_attr_name) > 1:
             get_logger().error(AMBIGUOUS_PATH_FOUND + " {{paths}}", paths=attr_name)
@@ -497,9 +479,7 @@ def _set_attr(obj_, path, value):
         elif value == None:
             new_value = None
         else:
-            new_value = _get(
-                old_value, CLASS
-            )(value)  # TRY TO MAKE INSTANCE OF SAME CLASS
+            new_value = _get(old_value, CLASS)(value)  # TRY TO MAKE INSTANCE OF SAME CLASS
     except Exception:
         old_value = None
         new_value = value
@@ -539,7 +519,7 @@ def list_to_data(v):
     return output
 
 
-def to_data(v=None):
+def to_data(v=None) -> object:
     """
     WRAP AS Data OBJECT FOR DATA PROCESSING: https://github.com/klahnakoski/mo-dots/tree/dev/docs
     :param v:  THE VALUE TO WRAP
@@ -554,6 +534,8 @@ def to_data(v=None):
         return m
     elif type_ is none_type:
         return Null
+    elif type_ is tuple:
+        return list_to_data(v)
     elif type_ is list:
         return list_to_data(v)
     elif type_ in generator_types:
@@ -597,13 +579,18 @@ def _leaves_to_data(value):
             if key == "":
                 get_logger().error("key is empty string.  Probably a bad idea")
 
-            d = output
             seq = split_field(key)
+            if not seq:
+                if not output:
+                    output = value
+                continue
+            if not is_data(output):
+                output = {}
+            d = output
             for k in seq[:-1]:
                 e = d.get(k, None)
-                if e is None:
-                    d[k] = {}
-                    e = d[k]
+                if not is_data(e):
+                    e = d[k] = {}
                 d = e
 
             if value == None:
@@ -705,7 +692,7 @@ def tuplewrap(value):
     elif is_many(value):
         return tuple(tuplewrap(v) if is_sequence(v) else v for v in value)
     else:
-        return from_data(value),
+        return (from_data(value),)
 
 
 def is_null(t):
@@ -759,7 +746,9 @@ export("mo_dots.lists", from_data)
 export("mo_dots.lists", hash_value)
 
 export("mo_dots.objects", list_to_data)
+export("mo_dots.objects", dict_to_data)
 export("mo_dots.objects", to_data)
 export("mo_dots.objects", from_data)
 export("mo_dots.objects", get_attr)
 export("mo_dots.objects", set_attr)
+export("mo_dots.objects", set_default)

@@ -93,7 +93,7 @@ def extractor(guid, abs_limit, esq, es_query, formatter, please_stop):
 
     try:
         with TempFile() as temp_file:
-            with open(temp_file.abs_path, "wb") as output:
+            with open(temp_file.abspath, "wb") as output:
                 result = esq.es.search(es_query, scroll="5m")
 
                 while not please_stop:

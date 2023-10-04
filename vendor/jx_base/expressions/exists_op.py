@@ -8,19 +8,18 @@
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
 
-from __future__ import absolute_import, division, unicode_literals
 
 from jx_base.expressions._utils import TRUE
 from jx_base.expressions.expression import Expression
 from jx_base.expressions.false_op import FALSE
 from mo_imports import expect
-from mo_json.types import T_BOOLEAN
+from mo_json.types import JX_BOOLEAN
 
 NotOp = expect("NotOp")
 
 
 class ExistsOp(Expression):
-    data_type = T_BOOLEAN
+    _data_type = JX_BOOLEAN
 
     def __init__(self, term):
         Expression.__init__(self, term)
@@ -43,7 +42,7 @@ class ExistsOp(Expression):
         return FALSE
 
     def invert(self, lang):
-        return (self.expr).missing(lang)
+        return self.expr.missing(lang)
 
     def exists(self):
         return TRUE

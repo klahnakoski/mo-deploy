@@ -8,7 +8,6 @@
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
 
-from __future__ import absolute_import, division, unicode_literals
 
 from mo_imports import export
 from jx_base.expressions.and_op import AndOp
@@ -24,9 +23,9 @@ class CoalesceOp(Expression):
     has_simple_form = True
 
     def __init__(self, *terms):
-        Expression.__init__(self, terms)
+        Expression.__init__(self, *terms)
         self.terms = terms
-        self.data_type = union_type(*(t.type for t in terms))
+        self._data_type = union_type(*(t.type for t in terms))
 
     def __data__(self):
         return {"coalesce": [t.__data__() for t in self.terms]}
@@ -39,7 +38,7 @@ class CoalesceOp(Expression):
 
     def missing(self, lang):
         # RETURN true FOR RECORDS THE WOULD RETURN NULL
-        return AndOp([v.missing(lang) for v in self.terms])
+        return AndOp(*(v.missing(lang) for v in self.terms))
 
     def vars(self):
         output = set()
@@ -48,12 +47,12 @@ class CoalesceOp(Expression):
         return output
 
     def map(self, map_):
-        return CoalesceOp([v.map(map_) for v in self.terms])
+        return CoalesceOp(*(v.map(map_) for v in self.terms))
 
     def partial_eval(self, lang):
         terms = []
         for t in self.terms:
-            simple = (FirstOp(t)).partial_eval(lang)
+            simple = FirstOp(t).partial_eval(lang)
             if simple is NULL:
                 pass
             elif is_literal(simple):
@@ -67,7 +66,7 @@ class CoalesceOp(Expression):
         elif len(terms) == 1:
             return terms[0]
         else:
-            return CoalesceOp(terms)
+            return CoalesceOp(*terms)
 
 
 export("jx_base.expressions.base_multi_op", CoalesceOp)

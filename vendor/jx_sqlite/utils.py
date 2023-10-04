@@ -9,40 +9,31 @@
 #
 
 
-from __future__ import absolute_import, division, unicode_literals
+
 
 from copy import copy
 from math import isnan
 
 from jx_base import DataClass
-from jx_base import Snowflake
-from jx_sqlite.sqlite import quote_column, SQL, SQL_DESC, SQL_ASC
+from mo_sqlite import quote_column, SQL_DESC, SQL_ASC
 from mo_dots import (
     Data,
-    concat_field,
     is_data,
     is_list,
-    join_field,
     split_field,
     is_sequence,
-    missing, is_missing, coalesce,
-)
-from mo_future import is_text, text
-from mo_json import BOOLEAN, ARRAY, NUMBER, OBJECT, STRING, json2value, T_BOOLEAN, INTEGER
+    is_missing, )
+from mo_future import is_text, text, POS_INF
+from mo_json import BOOLEAN, ARRAY, NUMBER, OBJECT, STRING, json2value, JX_BOOLEAN
 from mo_json.typed_encoder import untype_path
-from mo_logs import Log
 from mo_math import randoms
+from mo_sql.utils import GUID, UID, ORDER, PARENT
 from mo_times import Date
-from mo_json.types import _B, _I, _N, _T, _S, _A, T_ARRAY, T_TEXT, T_NUMBER, T_INTEGER, IS_PRIMITIVE_KEY
 
 DIGITS_TABLE = "__digits__"
 ABOUT_TABLE = "meta.about"
 
 
-GUID = "_id"  # user accessible, unique value across many machines
-UID = "__id__"  # internal numeric id for single-database use
-ORDER = "__order__"
-PARENT = "__parent__"
 COLUMN = "__column"
 
 ALL_TYPES = "bns"
@@ -69,10 +60,7 @@ def column_key(k, v):
         return k, "number"
 
 
-POS_INF = float("+inf")
-
-
-def value_to_jx_type(v):
+def value_to_json_type(v):
     if v == None:
         return None
     elif isinstance(v, bool):
@@ -136,29 +124,6 @@ def is_type(value, type):
     return False
 
 
-def typed_column(name, sql_key):
-    if len(sql_key) > 1:
-        Log.error("not expected")
-    return concat_field(name, "$" + sql_key)
-
-
-def untyped_column(column_name):
-    """
-    :param column_name:  DATABASE COLUMN NAME
-    :return: (NAME, TYPE) PAIR
-    """
-    if "$" in column_name:
-        path = split_field(column_name)
-        return join_field([p for p in path[:-1] if p != "$a"]), path[-1][1:]
-    elif column_name in [GUID]:
-        return column_name, "n"
-    else:
-        return column_name, None
-
-
-untype_field = untyped_column
-
-
 def _make_column_name(number):
     return COLUMN + text(number)
 
@@ -214,7 +179,7 @@ def get_column(column, json_type=None, default=None):
     :return: a function that can pull the given column out of sql resultset
     """
 
-    to_type = json_type_to_python_type.get(json_type)
+    to_type = jx_type_to_python_type.get(json_type)
 
     if to_type is None:
         def _get(row):
@@ -234,7 +199,7 @@ def get_column(column, json_type=None, default=None):
     return _get_type
 
 
-json_type_to_python_type = {T_BOOLEAN: bool}
+jx_type_to_python_type = {JX_BOOLEAN: bool}
 
 
 def set_column(row, col, child, value):
@@ -313,54 +278,11 @@ ColumnMapping = DataClass(
     ]},
 )
 
-sqlite_type_to_simple_type = {
-    "TEXT": STRING,
-    "REAL": NUMBER,
-    "INT": INTEGER,
-    "INTEGER": INTEGER,
-    "TINYINT": BOOLEAN,
-}
-
-sqlite_type_to_type_key = {
-    "ARRAY": _A,
-    "TEXT": _S,
-    "REAL": _N,
-    "INTEGER": _I,
-    "TINYINT": _B,
-    "TRUE": _B,
-    "FALSE": _B,
-}
-
-type_key_json_type = {
-    _A: T_ARRAY,
-    _S: T_TEXT,
-    _N: T_NUMBER,
-    _I: T_INTEGER,
-    _B: T_BOOLEAN,
-}
-
 sort_to_sqlite_order = {
     -1: SQL_DESC,
     0: SQL_ASC,
     1: SQL_ASC
 }
-
-class BasicSnowflake(Snowflake):
-    def __init__(self, query_paths, columns):
-        self._query_paths = query_paths
-        self._columns = columns
-
-    @property
-    def query_paths(self):
-        return self._query_paths
-
-    @property
-    def columns(self):
-        return self._columns
-
-    @property
-    def column(self):
-        return ColumnLocator(self._columns)
 
 
 class ColumnLocator(object):
