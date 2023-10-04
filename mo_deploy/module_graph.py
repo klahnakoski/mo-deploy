@@ -20,7 +20,7 @@ from mo_logs import Log
 from mo_logs.exceptions import Except
 from mo_math import UNION
 from mo_threads import Lock
-from mo_threads.threads import AllThread
+from mo_threads.threads import join_all_threads, Thread
 from mo_times import Timer
 from pyLibrary.utils import Version
 
@@ -52,9 +52,8 @@ class ModuleGraph(object):
                 with graph_lock:
                     graph[module_name].add(req.name)
 
-        with AllThread() as a:
-            for m in self.modules.values():
-                a.run(m.name, info, m)
+        threads = [Thread.run(m.name, info, m) for m in self.modules.values()]
+        join_all_threads(threads)
 
         # for m in self.modules.values():
         #     info(m, None)
@@ -89,12 +88,8 @@ class ModuleGraph(object):
             d.last_deploy()
 
         with Timer("get modules' status"):
-            with AllThread() as a:
-                for d in deploy_dependencies:
-                    a.run(d.name, pre_fetch_state, d)
-
-            # for d in deploy_dependencies:
-            #     pre_fetch_state(d, None)
+            threads = [Thread.run(d.name, pre_fetch_state, d) for d in deploy_dependencies]
+            join_all_threads(threads)
 
         # DO ANY ON THE deploy REQUIRE UPGRADE?
         no_upgrade_needed = set(

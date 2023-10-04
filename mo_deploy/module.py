@@ -99,18 +99,18 @@ class Module(object):
             self.local([self.git, "push", "origin", self.master_branch])
         except Exception as cause:
             cause = Except.wrap(cause)
-            self.local([self.git, "checkout", "-f", master_rev])
+            self.checkout(master_rev, "-f")
             self.local(
                 [self.git, "tag", "--delete", text(next_version)], raise_on_error=False,
             )
             self.local([self.git, "branch", "-D", self.master_branch], raise_on_error=False)
-            self.local([self.git, "checkout", "-b", self.master_branch])
+            self.checkout(self.master_branch, "-b")
             Log.error("Can not deploy {{module}}", module=self.name, cause=cause)
         finally:
-            self.local([self.git, "checkout", self.dev_branch])
+            self.checkout(self.dev_branch)
 
     def setup(self):
-        self.local([self.git, "checkout", self.dev_branch])
+        self.checkout(self.dev_branch)
         self.local([self.git, "merge", self.master_branch])
 
     def synch_travis_file(self):
@@ -352,7 +352,7 @@ class Module(object):
         setup_json.write(value2json(setup, pretty=True))
 
     def svn_update(self):
-        self.local([self.git, "checkout", self.dev_branch])
+        self.checkout(self.dev_branch)
 
         for d in self.directory.find(r"\.svn"):
             svn_dir = d.parent.os_path
@@ -377,14 +377,14 @@ class Module(object):
             self.local([self.git, "push", "origin", self.dev_branch])
         except Exception as e:
             Log.warning(
-                "git origin dev not updated for {{dir}}", dir=self.directory.name, cause=e,
+                "git origin dev not updated for {{dir}}", dir=self.directory.stem, cause=e,
             )
 
     def update_master_locally(self, version):
         Log.note("Update git master branch for {{dir}}", dir=self.directory.abs_path)
         try:
             v = text(version)
-            self.local([self.git, "checkout", self.master_branch])
+            self.checkout(self.master_branch)
             self.local([self.git, "merge", "--no-ff", "--no-commit", self.dev_branch])
             self.local([self.git, "commit", "-m", "release " + v])
             self.local([self.git, "tag", v])
@@ -626,7 +626,7 @@ class Module(object):
         self.update_dev("updates from other projects")
         # COMPARE TO MASTER
         branch_name = randoms.string(10)
-        self.local([self.git, "checkout", "-b", branch_name, self.master_branch])
+        self.checkout(branch_name, options="-b", source_branch=self.master_branch)
         try:
             self.local([self.git, "merge", self.dev_branch])
             p, stdout, stderr = self.local([self.git, "--no-pager", "diff", "--name-only", "master",])
@@ -639,24 +639,27 @@ class Module(object):
             else:
                 curr_revision = revision
 
-            while True:
-                try:
-                    self.local([self.git, "checkout", "-f", self.dev_branch])
-                    break
-                except Exception as cause:
-                    if any(r in cause for r in ["unable to write symref",  "unable to write new index file"]):
-                        Log.warning("retrying checkout", cause=cause)
-                        continue
-                    raise
+            self.checkout(self.dev_branch, "-f")
         except Exception as e:
             Log.warning("problem determining upgrade status", cause=e)
             self.local([self.git, "reset", "--hard", "HEAD"])
-            self.local([self.git, "checkout", "-f", self.dev_branch])
+            self.checkout(self.dev_branch, "-f")
             curr_revision = self.current_revision()
         finally:
             self.local([self.git, "branch", "-D", branch_name])
 
         return curr_revision != revision
+
+    def checkout(self, branch_name, options=None, source_branch=None):
+        while True:
+            try:
+                self.local([self.git, "checkout", *listwrap(options), branch_name, *listwrap(source_branch)])
+                break
+            except Exception as cause:
+                if any(r in cause for r in ["unable to write symref", "unable to write new index file"]):
+                    Log.warning("retrying checkout", cause=cause)
+                    continue
+                raise
 
     def __str__(self):
         return self.name
