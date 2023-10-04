@@ -11,7 +11,7 @@ from mo_deploy.module_graph import ModuleGraph
 from mo_dots import listwrap, from_data
 from mo_files import File
 from mo_logs import Log, constants, startup
-from mo_threads import Command
+from mo_threads import Command, stop_main_thread
 from pyLibrary.utils import Version
 
 
@@ -63,7 +63,7 @@ def main():
     except Exception as e:
         Log.warning("Problem with deploy", cause=e)
     finally:
-        Log.stop()
+        stop_main_thread()
 
 
 if __name__ == "__main__":
