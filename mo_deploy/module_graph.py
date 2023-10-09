@@ -19,7 +19,7 @@ from mo_http import http
 from mo_logs import Log
 from mo_logs.exceptions import Except
 from mo_math import UNION
-from mo_threads import Lock
+from mo_threads import Lock, Till
 from mo_threads.threads import join_all_threads, Thread
 from mo_times import Timer
 from pyLibrary.utils import Version
@@ -53,7 +53,7 @@ class ModuleGraph(object):
                     graph[module_name].add(req.name)
 
         threads = [Thread.run(m.name, info, m) for m in self.modules.values()]
-        join_all_threads(threads)
+        join_all_threads(threads, till=Till(seconds=10))
 
         # for m in self.modules.values():
         #     info(m, None)

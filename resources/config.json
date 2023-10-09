@@ -55,10 +55,10 @@
     "deploy": [
 //        "mo-testing", "mo-threads", "jx-python", "mo-logs"
 //        "mo-parsing", "mo-json-config", "mo-threads",
-//        "mo-testing", "mo-threads", "mo-files", "mo-streams"  // mo-sql-parsing testing
+        "mo-testing", "mo-threads", "mo-files", "mo-streams"  // mo-sql-parsing testing
 //        "mo-times", "mo-logs", "mo-json-config", "mo-threads", "mo-streams",
 //        "mo-sql-parsing",
-          "mo-files", "mo-times", "mo-kwargs", "mo-json-config", "mo-threads", "mo-streams"
+//          "mo-files", "mo-times", "mo-kwargs", "mo-json-config", "mo-threads", "mo-streams"
 //          "jx-python"
 
 //        "mo-streams", "mo-json-config", "mo-threads"
@@ -72,7 +72,11 @@
             "Referer": "https://github.com/klahnakoski/mo-deploy"
         },
         "mo_threads.commands.DEBUG": true,
-        "mo_threads.processes.DEBUG": true
+        "mo_threads.commands.INUSE_TIMEOUT": 10,
+//        "mo_threads.processes.DEBUG": true
     },
-    "debug": {"trace": true}
+    "debug": {
+        "trace": true,
+        "logs": [{"log_type": "console"}, {"log_type":"file", "file": "logs/deploy.log"}]
+    },
 }

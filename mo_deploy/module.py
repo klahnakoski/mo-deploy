@@ -491,7 +491,6 @@ class Module(object):
             ).join(raise_on_error=raise_on_error)
             stdout = list(p.stdout)
             stderr = list(p.stderr)
-            p.join()
             if show_all:
                 Log.note(
                     "{{module}} stdout = {{stdout}}\nstderr = {{stderr}}",
