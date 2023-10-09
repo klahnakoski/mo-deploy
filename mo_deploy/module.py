@@ -20,7 +20,7 @@ from mo_json import value2json, json2value
 from mo_logs import Except, Log, strings
 from mo_math import randoms
 from mo_threads import Thread, Till, Lock
-from mo_threads.multiprocess import Command
+from mo_threads.commands import Command
 from mo_times import Timer
 from pyLibrary.meta import cache
 from pyLibrary.utils import Version
@@ -70,11 +70,12 @@ class Module(object):
             self.update_setup_json_file(next_version)
             self.synch_travis_file()
             self.gen_setup_py_file()
+            module_name = self.name.replace("-", "_")
             self.local(
                 [
                     self.python["latest"],
                     "-c",
-                    "from " + self.name.replace("-", "_") + " import __deploy__; __deploy__()",
+                    f"from {module_name} import __deploy__; __deploy__()",
                 ],
                 raise_on_error=False,
             )

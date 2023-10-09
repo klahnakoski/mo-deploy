@@ -71,8 +71,8 @@
         "mo_http.http.default_headers": {
             "Referer": "https://github.com/klahnakoski/mo-deploy"
         },
-        "mo_threads.multiprocess.DEBUG_COMMAND": false,
-        "mo_threads.multiprocess.DEBUG_PROCESS": false
+        "mo_threads.commands.DEBUG": true,
+        "mo_threads.processes.DEBUG": true
     },
     "debug": {"trace": true}
 }

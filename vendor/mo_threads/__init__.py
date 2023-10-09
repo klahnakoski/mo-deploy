@@ -13,9 +13,10 @@
 from mo_imports import export
 
 from mo_threads import threads
+from mo_threads.processes import Process
+from mo_threads.commands import Command
 from mo_threads.futures import Future
 from mo_threads.lock import Lock
-from mo_threads.multiprocess import Process, Command
 from mo_threads.queues import Queue, ThreadedQueue
 from mo_threads.signals import Signal, DONE
 from mo_threads.threads import (
@@ -44,6 +45,11 @@ def coverage_detector():
             threads.COVERAGE_COLLECTOR = Collector
     except Exception:
         pass
+
+
+def __deploy__():
+    # nothing needs to be done for deployment
+    stop_main_thread()
 
 
 coverage_detector()

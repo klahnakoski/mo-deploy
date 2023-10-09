@@ -38,7 +38,7 @@ class Queue(object):
     """
     SIMPLE MULTI-THREADED QUEUE
 
-    (multiprocessing.Queue REQUIRES SERIALIZATION, WHICH
+    (processes.Queue REQUIRES SERIALIZATION, WHICH
     IS DIFFICULT TO USE JUST BETWEEN THREADS)
     """
 
@@ -54,7 +54,7 @@ class Queue(object):
         self.allow_add_after_close = allow_add_after_close
         self.unique = unique
         self.closed = Signal(
-            "stop adding signal for " + name
+            "queue is closed signal for " + name
         )  # INDICATE THE PRODUCER IS DONE GENERATING ITEMS TO QUEUE
         self.lock = Lock("lock for queue " + name)
         self.queue = deque()
@@ -436,7 +436,7 @@ class ThreadedQueue(Queue):
         self.slow_queue = slow_queue
         self.thread = (
             Thread
-            .run(f"threaded queue for {name}", self.worker_bee, batch_size, period, error_target, parent_thread=self,)
+            .run(f"threaded queue for {name}", self.worker_bee, batch_size, period, error_target, parent_thread=self)
             .release()
         )
 
@@ -517,6 +517,9 @@ class ThreadedQueue(Queue):
             # ONE LAST PUSH, DO NOT HAVE TIME TO DEAL WITH ERRORS
             push_to_queue()
         self.slow_queue.add(THREAD_STOP)
+
+    def add_child(self, child):
+        pass
 
     def add(self, value, timeout=None):
         with self.lock:

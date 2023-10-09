@@ -11,6 +11,7 @@
 import os
 import re
 
+from boto3.docs import client
 from mo_dots import (
     is_data,
     is_list,
@@ -32,6 +33,7 @@ from mo_future import is_text
 from mo_future import text
 from mo_json import json2value
 from mo_logs import Except, logger
+from moto.ssm.exceptions import AccessDeniedException
 
 from mo_json_config.configuration import Configuration
 from mo_json_config.convert import ini2value
@@ -343,6 +345,8 @@ def _get_ssm(ref, url):
             if not next_token:
                 break
             result = ssm.describe_parameters(NextToken=next_token, MaxResults=10)
+    except AccessDeniedException as cause:
+        return LazySsm(ssm, ref.path.rstrip("/"))
     except Exception as cause:
         ssm_has_failed = True
         logger.warning("Could not get ssm parameters", cause=cause)

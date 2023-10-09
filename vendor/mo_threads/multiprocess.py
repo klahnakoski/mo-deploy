@@ -9,26 +9,21 @@
 
 
 import os
-import platform
 import subprocess
 from _thread import allocate_lock
 from dataclasses import dataclass
 from time import time as unix_now
 
-from mo_dots import set_default, Null, Data
+from mo_dots import set_default, Null
 from mo_logs import logger, strings
 from mo_logs.exceptions import Except
-from mo_times import Timer
-
-from mo_threads import threads
-from mo_threads.lock import Lock
 from mo_threads.queues import Queue
 from mo_threads.signals import Signal
 from mo_threads.threads import THREAD_STOP, Thread
 from mo_threads.till import Till
+from mo_times import Timer
 
-DEBUG_PROCESS = True
-DEBUG_COMMAND = True
+DEBUG_PROCESS = False
 
 next_process_id_locker = allocate_lock()
 next_process_id = 0
@@ -85,6 +80,7 @@ class Process(object):
         self.stdout = Queue("stdout for process " + strings.quote(name), silent=not self.debug)
         self.stderr = Queue("stderr for process " + strings.quote(name), silent=not self.debug)
         self.timeout = timeout
+        self.monitor_period = 0.5
 
         try:
             if cwd == None:
@@ -136,9 +132,7 @@ class Process(object):
                     please_stop=self.please_stop,
                     parent_thread=Null,
                 ),
-                Thread.run(
-                    self.name + " waiter", self._monitor, please_stop=self.please_stop, parent_thread=self,
-                ),
+                Thread.run(self.name + " monitor", self._monitor, please_stop=self.please_stop, parent_thread=self,),
             )
         except Exception as cause:
             logger.error("Can not call  dir={cwd}", cwd=cwd, cause=cause)
@@ -157,6 +151,9 @@ class Process(object):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.join(raise_on_error=True)
 
+    def add_child(self, child):
+        pass
+
     def stop(self):
         self.please_stop.go()
         return self
@@ -168,20 +165,34 @@ class Process(object):
             return
         try:
             stdin_thread, stdout_thread, stderr_thread, monitor_thread = self.children
-            monitor_thread.join(till=till)
-            stdin_thread.join(till=till)
+            try:
+                monitor_thread.join(till=till)
+            except Exception as cause:
+                self.debug and print(cause)
+
             # stdout can lock up in windows, so do not wait too long
-            wait_limit = Till(seconds=0.5) | till
+            wait_limit = Till(seconds=1) | till
             try:
                 stdout_thread.join(till=wait_limit)
             except:
-                pass
+                self._kill()
             try:
                 stderr_thread.join(till=wait_limit)
             except:
-                pass
-            if stdout_thread.is_alive() or stderr_thread.is_alive():
                 self._kill()
+
+            self.stdout.close()
+            self.stderr.close()
+
+            # THESE THREADS HAVE STOPPED OR ARE LOST ON PIPE.readline()
+            stdout_thread.release()
+            stdout_thread.stopped.go()
+
+            stderr_thread.release()
+            stderr_thread.stopped.go()
+
+            self.stdin.close()
+            stdin_thread.join(till=till)
         finally:
             self.children = ()
 
@@ -217,13 +228,12 @@ class Process(object):
                         logger.warning("{name} took too long to respond", name=self.name)
                     break
                 try:
-                    self.service.wait(timeout=timeout)
-                    break
+                    self.service.wait(timeout=self.monitor_period)
+                    DEBUG_PROCESS and logger.info("{name} waiting for response", name=self.name)
                 except Exception:
                     # TIMEOUT, CHECK FOR LIVELINESS
                     pass
-            self.stopped.go()
-            self.stdin.close()
+        self.stopped.go()
         self.debug and logger.info(
             "{process} STOP: returncode={returncode}", process=self.name, returncode=self.service.returncode,
         )
@@ -246,11 +256,9 @@ class Process(object):
             logger.warning("premature read failure", cause=cause)
         finally:
             self.debug and logger.info("{name} closed", name=name)
+            self.please_stop.go()
             receive.close()
             pipe.close()
-            self.service.stderr.close()
-            self.service.stdout.close()
-            self.please_stop.go()
 
     def _writer(self, pipe, send, please_stop):
         while not please_stop:
@@ -287,259 +295,6 @@ class Process(object):
             logger.warning(
                 "Failure to kill process {process|quote}", process=self.name, cause=cause,
             )
-
-
-WINDOWS_ESCAPE_DCT = {
-    "%": "%%",
-    "&": "^&",
-    "\\": "^\\",
-    "<": "^<",
-    ">": "^>",
-    "^": "^^",
-    "|": "^|",
-    "\t": "^\t",
-    "\n": "^\n",
-    "\r": "^\r",
-    " ": "^ ",
-}
-
-PROMPT = "READY_FOR_MORE"
-
-
-def cmd_escape(value):
-    if hasattr(value, "os_path"):  # File
-        value = value.os_path
-    quoted = strings.quote(value)
-
-    if " " not in quoted and quoted == '"' + value + '"':
-        # SIMPLE
-        quoted = value
-
-    return quoted
-
-
-if "windows" in platform.system().lower():
-    LAST_RETURN_CODE = "echo %errorlevel%"
-
-    def set_prompt():
-        return "prompt " + PROMPT + "$g"
-
-    def cmd():
-        return "%windir%\\system32\\cmd.exe"
-
-    def to_text(value):
-        return value.decode("latin1")
-
-
-else:
-    LAST_RETURN_CODE = "echo $?"
-
-    def set_prompt():
-        return "set prompt=" + cmd_escape(PROMPT + ">")
-
-    def cmd():
-        return "bash"
-
-    def to_text(value):
-        return value.decode("latin1")
-
-
-available_command_locker = Lock("cmd lock")
-available_command = {}
-stale_command_killer = None
-
-
-class Command(object):
-    """
-    FASTER Process CLASS - OPENS A COMMAND_LINE APP (CMD on windows) AND KEEPS IT OPEN FOR MULTIPLE COMMANDS
-    EACH WORKING DIRECTORY WILL HAVE ITS OWN PROCESS, MULTIPLE PROCESSES WILL OPEN FOR THE SAME DIR IF MULTIPLE
-    THREADS ARE REQUESTING Commands
-    """
-
-    def __init__(
-        self, name, params, cwd=None, env=None, debug=False, shell=True, max_stdout=1024, bufsize=-1,
-    ):
-        global stale_command_killer
-
-        self.name = name
-        self.params = params
-        self.key = (
-            cwd,
-            Data(**(env or {})),  # env WILL BE UPDATED BY CALLEE
-            debug,
-            shell,
-        )
-        self.stdout = Queue("stdout for " + name, max=max_stdout)
-        self.stderr = Queue("stderr for " + name, max=max_stdout)
-        self.process = None
-        with available_command_locker:
-            avail = available_command.setdefault(self.key, [])
-            while avail:
-                self.process, last_used = avail.pop()
-                if self.process.stopped:
-                    continue
-                DEBUG_COMMAND and logger.info(
-                    "Reuse process {process} for {command}", process=self.process.name, command=name,
-                )
-
-        if not self.process:
-            self.process = Process(
-                name="command shell",
-                params=[cmd()],
-                cwd=os_path(cwd),
-                env=env,
-                debug=debug,
-                shell=shell,
-                bufsize=bufsize,
-                timeout=60 * 60,
-                parent_thread=threads.MAIN_THREAD,
-            )
-            self.process.stdin.add(set_prompt())
-            self.process.stdin.add(LAST_RETURN_CODE)
-            DEBUG_COMMAND and logger.info(
-                "New process {process} for {command}", process=self.process.name, command=name,
-            )
-            _wait_for_start(self.process.stdout, Null)
-
-        self.process.stdin.add(" ".join(cmd_escape(p) for p in params))
-        self.process.stdin.add(LAST_RETURN_CODE)
-        self.stdout_thread = Thread.run(
-            name + " stdout", self._stream_relay, "stdout", self.process.stdout, self.stdout,
-        )
-        self.stderr_thread = Thread.run(
-            name + " stderr", self._stream_relay, "stderr", self.process.stderr, self.stderr,
-        )
-        self.stderr_thread.stopped.then(self._cleanup)
-        self.returncode = None
-
-    def _cleanup(self):
-        global stale_command_killer
-
-        with available_command_locker:
-            if any(self.process == p for p, _ in available_command[self.key]):
-                logger.error("Not expected")
-            available_command[self.key].append((self.process, unix_now()))
-            if not stale_command_killer:
-                stale_command_killer = Thread.run(
-                    "remove stale Command objects", remove_stale_commands, parent_thread=threads.MAIN_THREAD
-                )
-
-    def join(self, raise_on_error=False, till=None):
-        try:
-            # WAIT FOR COMMAND LINE RESPONSE ON stdout
-            self.stdout_thread.join(till=till)
-            DEBUG_COMMAND and logger.info("stdout IS DONE {params}", params=self.params)
-        except Exception as cause:
-            logger.error("unexpected problem processing stdout", cause=cause)
-
-        try:
-            self.stderr_thread.please_stop.go()
-            self.stderr_thread.join(till=till)
-            DEBUG_COMMAND and logger.info("stderr IS DONE {params}", params=self.params)
-        except Exception as cause:
-            logger.error("unexpected problem processing stderr", cause=cause)
-
-        if raise_on_error and self.returncode != 0:
-            logger.error(
-                "{process} FAIL: returncode={code}\n{stderr}",
-                process=self.name,
-                code=self.returncode,
-                stderr=list(self.stderr),
-            )
-        return self
-
-    def _stream_relay(self, name, source, destination, please_stop=None):
-        """
-        :param source:
-        :param destination:
-        :param please_stop:
-        :return:
-        """
-        prompt_count = 0
-        prompt = PROMPT + ">"
-        line_count = 0
-
-        try:
-            while not please_stop:
-                value = source.pop(till=please_stop)
-                if value is None:
-                    continue
-                elif value is THREAD_STOP:
-                    DEBUG_COMMAND and logger.info("got thread stop")
-                    return
-                elif line_count == 0 and "is not recognized as an internal or external command" in value:
-                    DEBUG_COMMAND and logger.info("exit with error")
-                    logger.error("Problem with command: {desc}", desc=value)
-                elif value.startswith(prompt):
-                    if prompt_count:
-                        DEBUG_COMMAND and logger.info("prompt located, clean finish")
-                        # GET THE ERROR LEVEL
-                        self.returncode = int(source.pop(till=please_stop))
-                        return
-                    else:
-                        prompt_count += 1
-                else:
-                    line_count += 1
-                    destination.add(value)
-        finally:
-            destination.add(THREAD_STOP)
-        DEBUG_COMMAND and logger.info(
-            "{name} done with {please_stop}", name=name, please_stop=bool(please_stop),
-        )
-
-
-STALE_CHECK_PERIOD = 10
-STALE_MAX_AGE = 60
-
-
-def remove_stale_commands(please_stop):
-    """
-    REMOVE COMMANDS THAT HAVE NOT BEEN USED IN A WHILE
-    """
-    global stale_command_killer
-    while not please_stop:
-        (Till(seconds=STALE_CHECK_PERIOD) | please_stop).wait()
-        now = unix_now()
-        with available_command_locker:
-            stale = [
-                (key, process, last_used)
-                for key, processes in available_command.items()
-                for process, last_used in processes
-                if process.stopped or now - last_used > STALE_MAX_AGE
-            ]
-
-        for key, process, last_used in stale:
-            DEBUG_COMMAND and logger.info(
-                "removing stale process {process} for {key}", process=process.name, key=key,
-            )
-            try:
-                with available_command_locker:
-                    available_command[key].remove((process, last_used))
-                process.stdin.add("exit")
-                process.join()
-            except Exception:
-                pass
-
-        if not any(available_command.values()):
-            stale_command_killer = None
-            return
-
-
-def _wait_for_start(source, destination):
-    prompt = PROMPT + ">" + LAST_RETURN_CODE
-
-    while True:
-        value = source.pop()
-        if value.startswith(prompt):
-            # GET THE ERROR LEVEL
-            line = source.pop()
-            try:
-                returncode = int(line)
-            except Exception:
-                logger.error("not an int ({line})", line=line)
-            destination.add(THREAD_STOP)
-            return
-        destination.add(value)
 
 
 def os_path(path):
