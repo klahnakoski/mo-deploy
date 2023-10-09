@@ -45,7 +45,7 @@ class Command(object):
 
         self.name = name
         self.params = params
-        self.key = (cwd, Data(**(env or {})), debug, shell)
+        self.key = (cwd, dict(**(env or {})), debug, shell)
         self.stdout = Queue("stdout for " + name, max=max_stdout)
         self.stderr = Queue("stderr for " + name, max=max_stdout)
         self.process = process = self.get_or_create_process(bufsize, cwd, debug, env, name, shell)
@@ -210,11 +210,10 @@ def lifetime_management(please_stop):
     """
     global lifetime_management_thread
     while not please_stop:
-        (Till(seconds=STALE_CHECK_PERIOD) | please_stop).wait()
+        please_stop.wait(till=Till(seconds=STALE_CHECK_PERIOD))
         if please_stop:
             break
-        now = unix_now()
-        too_old = now - STALE_MAX_AGE
+        too_old = unix_now() - STALE_MAX_AGE
         _stop_stale_threads(too_old)
         with locker:
             if not avail_processes and not inuse_processes:
