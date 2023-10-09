@@ -73,7 +73,7 @@
         },
         "mo_threads.commands.DEBUG": true,
         "mo_threads.commands.INUSE_TIMEOUT": 10,
-//        "mo_threads.processes.DEBUG": true
+        "mo_threads.processes.DEBUG": true
     },
     "debug": {
         "trace": true,
