@@ -72,7 +72,7 @@
             "Referer": "https://github.com/klahnakoski/mo-deploy"
         },
         "mo_threads.commands.DEBUG": true,
-        "mo_threads.commands.INUSE_TIMEOUT": 10,
+        "mo_threads.commands.INUSE_TIMEOUT": 60,
         "mo_threads.processes.DEBUG": true
     },
     "debug": {

@@ -19,11 +19,11 @@ from mo_logs import logger, strings
 from mo_logs.exceptions import Except
 from mo_threads.queues import Queue
 from mo_threads.signals import Signal
-from mo_threads.threads import THREAD_STOP, Thread, EndOfThread
+from mo_threads.threads import THREAD_STOP, Thread, EndOfThread, ALL_LOCK, ALL
 from mo_threads.till import Till
 from mo_times import Timer, Date
 
-DEBUG = False
+DEBUG = True
 
 next_process_id_locker = allocate_lock()
 next_process_id = 0
@@ -134,7 +134,7 @@ class Process(object):
                     please_stop=self.please_stop,
                     parent_thread=Null,
                 ),
-                Thread.run(self.name + " monitor", self._monitor, please_stop=self.please_stop, parent_thread=self,),
+                Thread.run(self.name + " monitor", self._monitor, please_stop=self.please_stop, parent_thread=self),
             )
         except Exception as cause:
             logger.error("Can not call  dir={cwd}", cwd=cwd, cause=cause)
@@ -208,7 +208,7 @@ class Process(object):
                     self.service.wait(timeout=self.monitor_period)
                     if self.service.returncode is not None:
                         break
-                    DEBUG and logger.info("{name} waiting for response", name=self.name)
+                    self.debug and logger.info("{name} waiting for response", name=self.name)
                 except Exception:
                     # TIMEOUT, CHECK FOR LIVELINESS
                     pass
@@ -225,6 +225,9 @@ class Process(object):
             self.stdout.close()
             stdout_thread.release()
             stdout_thread.end_of_thread = EndOfThread(None, None)
+            with ALL_LOCK:
+                if stdout_thread.ident in ALL:
+                    del ALL[stdout_thread.ident]
             stdout_thread.stopped.go()
 
         try:
@@ -235,6 +238,9 @@ class Process(object):
             self.stderr.close()
             stderr_thread.release()
             stderr_thread.end_of_thread = EndOfThread(None, None)
+            with ALL_LOCK:
+                if stderr_thread.ident in ALL:
+                    del ALL[stderr_thread.ident]
             stderr_thread.stopped.go()
 
         self.stdin.close()
@@ -298,7 +304,7 @@ class Process(object):
     def _kill(self):
         try:
             self.service.kill()
-            logger.info("{process} was successfully terminated.", process=self.name, stack_depth=1)
+            logger.info("{process} was successfully terminated.", process=self.name, stack_depth=2)
         except Exception as cause:
             cause = Except.wrap(cause)
             if "The operation completed successfully" in cause:
