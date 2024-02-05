@@ -9,9 +9,12 @@
 #
 
 
-from jx_base.expressions import BasicAddOp as BasicAddOp_
-from jx_sqlite.expressions._utils import basic_multiop_to_sql
+from jx_base.expressions import SqlEqOp as SqlEqOp_
+from mo_sqlite import SQL_EQ, SQL
 
 
-class BasicAddOp(BasicAddOp_):
-    to_sql = basic_multiop_to_sql
+class SqlEqOp(SqlEqOp_, SQL):
+    def __iter__(self):
+        yield from self.lhs.sql
+        yield from SQL_EQ
+        yield from self.rhs.sql
