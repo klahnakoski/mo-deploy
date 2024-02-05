@@ -226,6 +226,7 @@ class File(object):
         :return: STRING
         """
         from zipfile import ZipFile
+
         with ZipFile(self.abs_path) as zipped:
             for num, zip_name in enumerate(zipped.namelist()):
                 return zipped.open(zip_name).read().decode(encoding)
@@ -457,9 +458,6 @@ class File(object):
     def __data__(self):
         return self._filename
 
-    def __unicode__(self):
-        return self.abs_path
-
     def __eq__(self, other):
         return isinstance(other, File) and other.abs_path == self.abs_path
 
@@ -488,7 +486,7 @@ class TempDirectory(File):
     def __exit__(self, exc_type, exc_val, exc_tb):
         from mo_threads import Thread
 
-        Thread.run("delete dir " + self.stem, delete_daemon, file=self, caller_stack=get_stacktrace(1),).release()
+        Thread.run("delete dir " + self.stem, delete_daemon, file=self, caller_stack=get_stacktrace(1)).release()
 
 
 class TempFile(File):

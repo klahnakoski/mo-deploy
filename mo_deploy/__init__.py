@@ -10,7 +10,7 @@ from mo_deploy.module import Module
 from mo_deploy.module_graph import ModuleGraph
 from mo_dots import listwrap, from_data
 from mo_files import File
-from mo_logs import Log, constants, startup
+from mo_logs import logger, constants, startup
 from mo_threads import Command, stop_main_thread
 from pyLibrary.utils import Version
 
@@ -19,19 +19,19 @@ def main():
     try:
         settings = startup.read_settings()
         constants.set(settings.constants)
-        Log.start(settings.debug)
+        logger.start(settings.debug)
 
         # ENSURE python HAS latest
         python = settings.general.python
         latest = Version("0")
         for version, path in python.items():
             # THIS TAKES A LONG TIME, SO WE DO NOT BOTHER JOINING
-            Command(
-                "upgrade setuptools",
-                [path, "-m", "pip", "install", "--upgrade", "setuptools"],
-                cwd=File("."),
-                debug=True
-            )
+            # Command(
+            #     "upgrade setuptools",
+            #     [path, "-m", "pip", "install", "--upgrade", "setuptools"],
+            #     cwd=File("."),
+            #     debug=True
+            # )
 
             version = Version(version)
             if version > latest:
@@ -40,7 +40,7 @@ def main():
 
         # INSTALL PACKAGING TOOLS
         Command(
-            "packaging tools", [python.latest, "-m", "pip", "install", "wheel"], cwd=File("."), debug=True
+            "packaging tools", [python.latest, "-m", "pip", "install", "wheel", "build"], cwd=File("."), debug=True
         ).join(raise_on_error=True)
 
         # SET Module VARIABLES (IN general)
@@ -53,15 +53,15 @@ def main():
         # python -m pip install --user --upgrade twine
 
         if not graph.todo:
-            Log.alert("No modules need to deploy")
+            logger.alert("No modules need to deploy")
             return
         input("Press <Enter> to continue ...")
         for m in graph.todo:
-            Log.alert("DEPLOY {{module|upper}} - {{version}}", module=m.name, version=graph.get_next_version(m.name))
+            logger.alert("DEPLOY {{module|upper}} - {{version}}", module=m.name, version=graph.get_next_version(m.name))
             m.deploy()
 
     except Exception as e:
-        Log.warning("Problem with deploy", cause=e)
+        logger.warning("Problem with deploy", cause=e)
     finally:
         stop_main_thread()
 

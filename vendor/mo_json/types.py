@@ -11,9 +11,9 @@ from datetime import datetime, date
 from decimal import Decimal
 from math import isnan
 
-from mo_dots import split_field, NullType, is_many, is_data, concat_field, is_sequence
+from mo_dots import split_field, NullType, is_many, is_data, concat_field, is_sequence, FlatList
 from mo_future import text, none_type, items, first, POS_INF
-from mo_logs import Log
+from mo_logs import logger
 from mo_times import Date
 
 
@@ -29,6 +29,8 @@ def to_jx_type(value):
 class JxType(object):
     def __init__(self, **kwargs):
         for k, v in kwargs.items():
+            if k=="..":
+                logger.error("not allowed")
             setattr(self, k, v)
 
     def __or__(self, other):
@@ -69,7 +71,7 @@ class JxType(object):
                 dirty = True
                 continue
 
-            Log.error("Not expected")
+            logger.error("Not expected")
 
         if not dirty:
             return self
@@ -95,6 +97,8 @@ class JxType(object):
                     yield concat_field(k, p), t
 
     def __contains__(self, item):
+        if self is JX_ANY:
+            return True
         if isinstance(item, str):
             return item in self.__dict__
         if not isinstance(item, JxType):
@@ -147,7 +151,7 @@ class JxType(object):
             sd = base_type(sd)
             od = base_type(od)
 
-            Log.error("not expected", cause)
+            logger.error("not expected", cause)
 
     def __radd__(self, path):
         """
@@ -210,7 +214,7 @@ def base_type(type_):
 
 def union_type(*types):
     if len(types) == 1 and is_many(types[0]):
-        Log.error("expecting many parameters")
+        logger.error("expecting many parameters")
     output = JX_IS_NULL
 
     for t in types:
@@ -368,6 +372,9 @@ _python_type_to_jx_type = {
     Date: JX_TIME,
     datetime: JX_TIME,
     date: JX_TIME,
+    FlatList: JX_ARRAY,
+    list: JX_ARRAY,
+    tuple: JX_ARRAY,
 }
 
 for k, v in items(_python_type_to_jx_type):

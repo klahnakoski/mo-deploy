@@ -6,12 +6,12 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 
-from jx_base import DataClass
+from mo_math import randoms
 
+from jx_base import DataClass
 from mo_dots import is_list, join_field
 from mo_json import *
 from mo_logs import Log
-from mo_math import randoms
 from mo_times import Date
 
 DIGITS_TABLE = "__digits__"
@@ -23,8 +23,6 @@ UID = "__id__"  # internal numeric id for single-database use
 ORDER = "__order__"
 PARENT = "__parent__"
 COLUMN = "__column"
-
-ALL_TYPES = "bns"
 
 
 def unique_name():
@@ -59,7 +57,7 @@ def untyped_column(column_name):
     :param column_name:  DATABASE COLUMN NAME
     :return: (NAME, TYPE) PAIR
     """
-    if "$" in column_name:
+    if SQL_KEY_PREFIX in column_name:
         path = split_field(column_name)
         if path[-1] in SQL_KEYS:
             return join_field([p for p in path[:-1] if p != SQL_ARRAY_KEY]), path[-1][1:]
@@ -87,7 +85,10 @@ sql_aggs = {
     "minimum": "MIN",
     "sum": "SUM",
     "add": "SUM",
+    "any": "MAX",
+    "all": "MIN",
 }
+
 
 STATS = {
     "count": "COUNT({{value}})",
@@ -106,6 +107,7 @@ SQL_KEY_PREFIX = "$"
 
 SQL_IS_NULL_KEY = SQL_KEY_PREFIX + "0"
 SQL_BOOLEAN_KEY = SQL_KEY_PREFIX + "B"
+SQL_INTEGER_KEY = SQL_KEY_PREFIX + "I"
 SQL_NUMBER_KEY = SQL_KEY_PREFIX + "N"
 SQL_TIME_KEY = SQL_KEY_PREFIX + "T"
 SQL_INTERVAL_KEY = SQL_KEY_PREFIX + "N"
@@ -125,6 +127,7 @@ SQL_KEYS = [
     SQL_ARRAY_KEY
 ]
 
+
 json_type_to_sql_type_key = {
     IS_NULL: SQL_IS_NULL_KEY,
     BOOLEAN: SQL_BOOLEAN_KEY,
@@ -134,7 +137,14 @@ json_type_to_sql_type_key = {
     STRING: SQL_STRING_KEY,
     OBJECT: SQL_OBJECT_KEY,
     ARRAY: SQL_ARRAY_KEY,
+    JX_IS_NULL: SQL_IS_NULL_KEY,
+    JX_BOOLEAN: SQL_BOOLEAN_KEY,
+    JX_NUMBER: SQL_NUMBER_KEY,
+    JX_TIME: SQL_TIME_KEY,
+    JX_INTERVAL: SQL_INTERVAL_KEY,
+    JX_TEXT: SQL_STRING_KEY,
 }
+
 
 sql_type_key_to_json_type = {
     None: None,

@@ -16,11 +16,10 @@ from mo_deploy.module import Module
 from mo_deploy.utils import Requirement, TODAY
 from mo_dots import listwrap
 from mo_http import http
-from mo_logs import Log
+from mo_logs import logger, logger
 from mo_logs.exceptions import Except
 from mo_math import UNION
-from mo_threads import Lock, Till
-from mo_threads.threads import join_all_threads, Thread
+from mo_threads import Lock, Thread, join_all_threads
 from mo_times import Timer
 from pyLibrary.utils import Version
 
@@ -40,7 +39,7 @@ class ModuleGraph(object):
 
         def info(m, please_stop):
             module_name = m.name
-
+            m.clean_branches()
             # FIND DEPENDENCIES FOR EACH MODULE
             graph[module_name] = set()
             last_version = m.get_version()[0]
@@ -52,11 +51,9 @@ class ModuleGraph(object):
                 with graph_lock:
                     graph[module_name].add(req.name)
 
-        threads = [Thread.run(m.name, info, m) for m in self.modules.values()]
-        join_all_threads(threads, till=Till(seconds=10))
-
         # for m in self.modules.values():
         #     info(m, None)
+        join_all_threads([Thread.run(m.name, info, m) for m in self.modules.values()])
 
         self.toposort = list(toposort(graph))
 
@@ -74,11 +71,12 @@ class ModuleGraph(object):
             graph[m] = closure(m)
 
         # WHAT MUST BE DEPLOYED?
-        deploy_dependencies = set(
-            self.modules[d] for d in closure(deploy) if d in self.modules
-        )
+        deploy_dependencies = list(sorted(
+            set(self.modules[d] for d in closure(deploy) if d in self.modules),
+            key=lambda m: m.name
+        ))
 
-        Log.note(
+        logger.info(
             "Dependencies are {{modules}}",
             modules=[m.name for m in deploy_dependencies],
         )
@@ -88,10 +86,19 @@ class ModuleGraph(object):
             d.last_deploy()
 
         with Timer("get modules' status"):
-            threads = [Thread.run(d.name, pre_fetch_state, d) for d in deploy_dependencies]
-            join_all_threads(threads)
+            join_all_threads(
+                Thread.run(d.name, pre_fetch_state, d)
+                for d in deploy_dependencies
+            )
+
+            # for d in deploy_dependencies:
+            #     pre_fetch_state(d, None)
 
         # DO ANY ON THE deploy REQUIRE UPGRADE?
+        summary = [
+            (m.name, m.please_upgrade(), m.last_deploy(), m.get_version()[0])
+            for m in deploy_dependencies
+        ]
         no_upgrade_needed = set(
             m.name
             for m in deploy_dependencies
@@ -126,7 +133,7 @@ class ModuleGraph(object):
 
         is_upgrading = set(self._next_version.keys())
 
-        def scan(module: Module, version: Version, new_version: Version, ancestor_upgrading):
+        def scan(module: Module, version: Version, new_version: Version, ancestor_upgrading, depth=0):
             """
             LOG THE module:version FOR EVERYTHING IN THE DEPENDENCIES
             Markup modules that need incidental upgrade
@@ -140,7 +147,7 @@ class ModuleGraph(object):
 
             for req in reqs:
                 req_name, req_version = req["name"], req["version"]
-                # Log.note(
+                # logger.info(
                 #     "{{module}}=={{version}} requires {{req_name}}=={{req_version}}",
                 #     module=module.name,
                 #     version=version,
@@ -164,7 +171,7 @@ class ModuleGraph(object):
                     if curr_version < req_version:
                         is_upgrading.add(module.name)
                         self._next_version[req_name] = req_new_version
-                        Log.error("not done")
+                        logger.error("not done")
                     elif req_version < curr_version:
                         # THERE IS A CONFLICT SOMEWHERE IN THE DEPENDENCY TREE
                         is_upgrading.add(module.name)
@@ -173,17 +180,19 @@ class ModuleGraph(object):
                             self.next_minor_version,
                             TODAY,
                         ))
-                        Log.error("not done")
+                        logger.error("not done")
 
                 if managed_req:
-                    decendant_upgrading = scan(managed_req, curr_version, req_new_version, ancestor_upgrading or module.name in is_upgrading)
-                    any_decendant_upgrading |= decendant_upgrading
-                    if module.name not in is_upgrading and decendant_upgrading and ancestor_upgrading:
+                    if depth > 100:
+                        logger.error("not done")
+                    descendant_upgrading = scan(managed_req, curr_version, req_new_version, ancestor_upgrading or module.name in is_upgrading, depth=depth+ 1)
+                    any_decendant_upgrading |= descendant_upgrading
+                    if module.name not in is_upgrading and descendant_upgrading and ancestor_upgrading:
                         is_upgrading.add(module.name)
                         if new_version is None:
-                            Log.error("do not know how to handle")
+                            logger.error("do not know how to handle")
                         self._next_version[module.name] = new_version
-                        Log.error("not done")
+                        logger.error("not done")
 
             return any_decendant_upgrading or module.name in is_upgrading
 
@@ -195,11 +204,11 @@ class ModuleGraph(object):
                 cause = Except.wrap(cause)
                 if "not done" in cause:
                     continue
-                Log.error("problem while scanning past versions", cause=cause)
+                logger.error("problem while scanning past versions", cause=cause)
             else:
                 break
 
-        Log.note(
+        logger.info(
             "Using old versions {{versions}}",
             versions={
                 k: str(v)
@@ -209,7 +218,7 @@ class ModuleGraph(object):
         )
         additional = self._next_version.keys() - version_bump.keys()
         if additional:
-            Log.note(
+            logger.info(
                 "No change, but requires version bump {{modules}}", modules=additional,
             )
 
@@ -217,7 +226,7 @@ class ModuleGraph(object):
         self.todo = self._sorted(self._next_version.keys() - no_upgrade_needed | additional)
 
         if self._next_version:
-            Log.alert("Updating: {{modules}}", modules=[(m.name, self._next_version[m.name]) for m in self.todo])
+            logger.alert("Updating: {{modules}}", modules=[(m.name, self._next_version[m.name]) for m in self.todo])
 
     def get_pypi_version(self, module_name):
         result = http.get_json(f"https://pypi.org/pypi/{module_name}/json")
@@ -266,9 +275,12 @@ class ModuleGraph(object):
         :param candidates:  list of module name
         :return: modules in canonical topological order
         """
-        return [
-            self.modules[module]
-            for batch in self.toposort
-            for module in sorted(batch)
-            if module in candidates
-        ]
+        try:
+            return [
+                self.modules[module]
+                for batch in self.toposort
+                for module in sorted(batch)
+                if module in candidates
+            ]
+        except Exception as cause:
+            logger.error("not expected", cuase=cause)

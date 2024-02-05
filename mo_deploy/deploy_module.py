@@ -17,6 +17,7 @@ class DeployModule:
         self.graph = graph
         self.deploy = deploy
         self.name = "__deploy__"
+        self.package_name = "__deploy__"
         self.version = FIRST_VERSION
 
     def setup(self):
@@ -46,3 +47,7 @@ class DeployModule:
 
     def __str__(self):
         return "__deploy__"
+
+    def clean_branches(self):
+        pass
+

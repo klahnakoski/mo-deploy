@@ -7,10 +7,12 @@
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
 import json
+import platform
 import sys
 
 from collections import OrderedDict, UserDict
 from collections.abc import Callable, Iterable, Mapping, Set, MutableMapping
+from datetime import datetime, timezone
 from functools import cmp_to_key, reduce, update_wrapper
 from configparser import ConfigParser
 from itertools import zip_longest
@@ -23,9 +25,54 @@ from io import BytesIO
 from _thread import allocate_lock, get_ident, start_new_thread, interrupt_main
 
 
+__all__ = [
+    "__builtin__",
+    "allocate_lock",
+    "binary_type",
+    "BytesIO",
+    "Callable",
+    "ConfigParser",
+    "extend",
+    "first",
+    "flatten",
+    "generator_types",
+    "get_ident",
+    "HTMLParser",
+    "input",
+    "integer_types",
+    "interrupt_main",
+    "is_binary",
+    "is_text",
+    "is_windows",
+    "items",
+    "Iterable",
+    "izip",
+    "long",
+    "Mapping",
+    "MutableMapping",
+    "NEXT",
+    "next",
+    "none_type",
+    "OrderedDict",
+    "process_time",
+    "reduce",
+    "Set",
+    "sort_using_key",
+    "start_new_thread",
+    "StringIO",
+    "text",
+    "transpose",
+    "urlparse",
+    "UserDict",
+    "zip_longest",
+    "utcnow",
+    "utcfromtimestamp",
+]
+
 PYPY = False
 PY2 = False
 PY3 = True
+
 try:
     import __pypy__ as _
 
@@ -53,6 +100,11 @@ try:
     from time import process_time
 except:
     from time import clock as process_time
+
+if "windows" in platform.system().lower():
+    is_windows = True
+else:
+    is_windows = False
 
 izip = zip
 text = str
@@ -193,29 +245,18 @@ def flatten(items):
     return (vv for v in items for vv in v)
 
 
-_keep_imports = (
-    __builtin__,
-    allocate_lock,
-    BytesIO,
-    Callable,
-    ConfigParser,
-    get_ident,
-    HTMLParser,
-    input,
-    interrupt_main,
-    Iterable,
-    izip,
-    Mapping,
-    MutableMapping,
-    OrderedDict,
-    process_time,
-    reduce,
-    Set,
-    start_new_thread,
-    StringIO,
-    transpose,
-    urlparse,
-    UserDict,
-    zip_longest,
-)
+if sys.version_info >= (3, 12):
+    def utcnow():
+        return datetime.now(timezone.utc)
+
+    def utcfromtimestamp(timestamp):
+        return datetime.fromtimestamp(timestamp, timezone.utc)
+else:
+    utcnow = datetime.utcnow
+
+    def utcfromtimestamp(u):
+        d = datetime.utcfromtimestamp(u)
+        d = d.replace(tzinfo=timezone.utc)
+        return d
+
 

@@ -39,12 +39,12 @@ class FileString(text):
 
     def decode(self, encoding):
         if encoding != "utf8":
-            Log.error("can not handle {{encoding}}",  encoding= encoding)
+            Log.error("can not handle {{encoding}}", encoding=encoding)
         self.encoding = encoding
         return self
 
     def split(self, sep):
-        if sep not in (b"\n", u"\n"):
+        if sep not in (b"\n", "\n"):
             Log.error("Can only split by lines")
         self.file.seek(0)
         return LazyLines(self.file)
@@ -69,7 +69,7 @@ class FileString(text):
                 "Can not read file slice at {{index}}, with encoding {{encoding}}",
                 index=i,
                 encoding=self.encoding,
-                cause=e
+                cause=e,
             )
 
     def __add__(self, other):
@@ -98,6 +98,7 @@ class FileString(text):
         return self.file
 
     if PY3:
+
         def __str__(self):
             if self.encoding == "utf8":
                 temp = self.file.tell()
@@ -107,7 +108,9 @@ class FileString(text):
                 output = self.file.read(file_length).decode(self.encoding)
                 self.file.seek(temp)
                 return output
+
     else:
+
         def __unicode__(self):
             if self.encoding == "utf8":
                 temp = self.file.tell()
@@ -147,11 +150,11 @@ def safe_size(source):
                     data.write(b)
                     b = source.read(MIN_READ_SIZE)
                 data.seek(0)
-                Log.note("Using file of size {{length}} instead of str()",  length= total_bytes)
+                Log.note("Using file of size {{length}} instead of str()", length=total_bytes)
 
                 return data
             except Exception as e:
-                Log.error("Could not write file > {{num}} bytes",  num= total_bytes, cause=e)
+                Log.error("Could not write file > {{num}} bytes", num=total_bytes, cause=e)
         b = source.read(MIN_READ_SIZE)
 
     data = b"".join(bytes)
@@ -175,6 +178,7 @@ class LazyLines(object):
 
     def __getslice__(self, i, j):
         if i == self._next - 1:
+
             def output():
                 yield self._last
                 for v in self._iter:
@@ -224,7 +228,9 @@ class CompressedLines(LazyLines):
         self._iter = self.__iter__()
 
     def __iter__(self):
-        return LazyLines(ibytes2ilines(compressed_bytes2ibytes(self.compressed, MIN_READ_SIZE), encoding=self.encoding)).__iter__()
+        return LazyLines(ibytes2ilines(
+            compressed_bytes2ibytes(self.compressed, MIN_READ_SIZE), encoding=self.encoding
+        )).__iter__()
 
     def __getslice__(self, i, j):
         if i == self._next:
@@ -234,6 +240,7 @@ class CompressedLines(LazyLines):
             return self.__iter__()
 
         if i == self._next - 1:
+
             def output():
                 yield self._last
                 for v in self._iter:
@@ -254,7 +261,6 @@ class CompressedLines(LazyLines):
                 Log.error("can not index out-of-order too much")
         except Exception as e:
             Log.error("Problem indexing", e)
-
 
     def __radd__(self, other):
         new_file = TemporaryFile()
@@ -277,7 +283,7 @@ def compressed_bytes2ibytes(compressed, size):
 
     for i in range(0, mo_math.ceiling(len(compressed), size), size):
         try:
-            block = compressed[i: i + size]
+            block = compressed[i : i + size]
             yield decompressor.decompress(block)
         except Exception as e:
             Log.error("Not expected", e)
@@ -332,22 +338,22 @@ def ibytes2icompressed(source):
     :return: ITERATOR OF BYTES (COMPRESSED)
     """
     yield (
-        b'\037\213\010\000' +  # Gzip file, deflate, no filename
-        struct.pack('<L', long(time.time())) +  # compression start time
-        b'\002\377'  # maximum compression, no OS specified
+        b"\037\213\010\000"
+        + struct.pack("<L", long(time.time()))  # Gzip file, deflate, no filename
+        + b"\002\377"  # compression start time  # maximum compression, no OS specified
     )
 
     crc = zlib.crc32(b"")
     length = 0
     compressor = zlib.compressobj(9, zlib.DEFLATED, -zlib.MAX_WBITS, zlib.DEF_MEM_LEVEL, 0)
     for d in source:
-        crc = zlib.crc32(d, crc) & 0xffffffff
+        crc = zlib.crc32(d, crc) & 0xFFFFFFFF
         length += len(d)
         chunk = compressor.compress(d)
         if chunk:
             yield chunk
     yield compressor.flush()
-    yield struct.pack("<2L", crc, length & 0xffffffff)
+    yield struct.pack("<2L", crc, length & 0xFFFFFFFF)
 
 
 class GzipLines(CompressedLines):
@@ -360,7 +366,7 @@ class GzipLines(CompressedLines):
 
     def __iter__(self):
         buff = BytesIO(self.compressed)
-        return LazyLines(sbytes2ilines(gzip.GzipFile(fileobj=buff, mode='r'), encoding=self.encoding)).__iter__()
+        return LazyLines(sbytes2ilines(gzip.GzipFile(fileobj=buff, mode="r"), encoding=self.encoding)).__iter__()
 
 
 class ZipfileLines(CompressedLines):
@@ -373,10 +379,10 @@ class ZipfileLines(CompressedLines):
 
     def __iter__(self):
         buff = BytesIO(self.compressed)
-        archive = zipfile.ZipFile(buff, mode='r')
+        archive = zipfile.ZipFile(buff, mode="r")
         names = archive.namelist()
         if len(names) != 1:
-            Log.error("*.zip file has {{num}} files, expecting only one.",  num= len(names))
+            Log.error("*.zip file has {{num}} files, expecting only one.", num=len(names))
         stream = archive.open(names[0], "r")
         return LazyLines(sbytes2ilines(stream, encoding=self.encoding)).__iter__()
 
@@ -393,7 +399,6 @@ def icompressed2ibytes(source):
 
         data = decompressor.decompress(bytes_)
 
-
         bytes_count += len(data)
         if mo_math.floor(last_bytes_count, 1000000) != mo_math.floor(bytes_count, 1000000):
             last_bytes_count = bytes_count
@@ -406,6 +411,7 @@ def scompressed2ibytes(stream):
     :param stream:  SOMETHING WITH read() METHOD TO GET MORE BYTES
     :return: GENERATOR OF UNCOMPRESSED BYTES
     """
+
     def more():
         try:
             while True:
@@ -427,6 +433,7 @@ def sbytes2ilines(stream, encoding="utf8", closer=None):
     CONVERT A STREAM (with read() method) OF (ARBITRARY-SIZED) byte BLOCKS
     TO A LINE (CR-DELIMITED) GENERATOR
     """
+
     def read():
         try:
             while True:
@@ -459,16 +466,22 @@ def get_decoder(encoding, flexible=False):
     :return: FUNCTION
     """
     if encoding == None:
+
         def no_decode(v):
             return v
+
         return no_decode
     elif flexible:
+
         def do_decode1(v):
-            return v.decode(encoding, 'ignore')
+            return v.decode(encoding, "ignore")
+
         return do_decode1
     else:
+
         def do_decode2(v):
             return v.decode(encoding)
+
         return do_decode2
 
 
@@ -477,10 +490,10 @@ def zip2bytes(compressed):
     UNZIP DATA
     """
     if hasattr(compressed, "read"):
-        return gzip.GzipFile(fileobj=compressed, mode='r')
+        return gzip.GzipFile(fileobj=compressed, mode="r")
 
     buff = BytesIO(compressed)
-    archive = gzip.GzipFile(fileobj=buff, mode='r')
+    archive = gzip.GzipFile(fileobj=buff, mode="r")
     return safe_size(archive)
 
 
@@ -490,7 +503,7 @@ def bytes2zip(bytes):
     """
     if hasattr(bytes, "read"):
         buff = TemporaryFile()
-        archive = gzip.GzipFile(fileobj=buff, mode='w')
+        archive = gzip.GzipFile(fileobj=buff, mode="w")
         for b in bytes:
             archive.write(b)
         archive.close()
@@ -498,7 +511,7 @@ def bytes2zip(bytes):
         return FileString(buff)
 
     buff = BytesIO()
-    archive = gzip.GzipFile(fileobj=buff, mode='w')
+    archive = gzip.GzipFile(fileobj=buff, mode="w")
     archive.write(bytes)
     archive.close()
     return buff.getvalue()

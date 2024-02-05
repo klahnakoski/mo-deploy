@@ -278,7 +278,13 @@ TestCase.assertEqual = assertEqual
 
 
 def add_error_reporting(suite):
-    def add_hanlder(function):
+    """
+    Both unittest and pytest have become sophisticated enough to hide
+    the problems cause by a test failure. Making debugging difficult.
+    This method ensures a detailed error message is logged
+    :param suite: The TestCase class (as @decorator)
+    """
+    def add_handler(function):
         test_name = get_function_name(function)
         def error_hanlder(*args, **kwargs):
             try:
@@ -286,7 +292,7 @@ def add_error_reporting(suite):
             except SkipTest as cause:
                 raise cause
             except Exception as cause:
-                Log.warning(f"{test_name} failed", cause)
+                Log.warning("{test_name} failed", cause=cause, test_name=test_name, static_template=False)
                 raise cause
 
         return error_hanlder
@@ -296,7 +302,7 @@ def add_error_reporting(suite):
         # find all methods, and wrap in exceptin handler
         for name, func in vars(suite).items():
             if name.startswith("test"):
-                h = add_hanlder(func)
+                h = add_handler(func)
                 h.__name__ = get_function_name(func)
                 setattr(suite, name, h)
     return suite

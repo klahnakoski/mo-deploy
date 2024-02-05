@@ -10,16 +10,13 @@
 import math
 from datetime import timedelta, timezone
 
-from hjson import loads as hjson2value
-
 from mo_dots import (
     Data,
-    FlatList,
     Null,
     SLOT,
     to_data,
     leaves_to_data,
-    null_types,
+    null_types, is_list,
 )
 from mo_dots.objects import DataObject
 from mo_future import (
@@ -28,12 +25,15 @@ from mo_future import (
     is_text,
 )
 from mo_imports import delay_import
-from mo_json.types import *
 from mo_logs import Except, strings
-from mo_logs.strings import expand_template, toString, FORMATTERS
+from mo_logs.strings import toString, FORMATTERS
 from mo_times import Duration
 
+from mo_json.types import *
+
 logger = delay_import("mo_logs.logger")
+hjson2value = delay_import("hjson.loads")
+
 
 FIND_LOOPS = True  # FIND LOOPS IN DATA STRUCTURES
 SNAP_TO_BASE_10 = False  # Identify floats near a round base10 value (has 000 or 999) and shorten
@@ -350,7 +350,7 @@ def json2value(json_string, params=Null, flexible=False, leaves=False):
     """
     :param json_string: THE JSON
     :param params: STANDARD JSON PARAMS
-    :param flexible: REMOVE COMMENTS
+    :param flexible: REMOVE COMMENTS (uses hjson)
     :param leaves: ASSUME JSON KEYS ARE DOT-DELIMITED
     :return: Python value
     """
@@ -359,7 +359,7 @@ def json2value(json_string, params=Null, flexible=False, leaves=False):
         logger.error("only unicode json accepted")
 
     try:
-        if params:
+        if len(params):
             # LOOKUP REFERENCES
             json_string = _simple_expand(json_string, (params, ))
 
@@ -482,7 +482,7 @@ def _simple_expand(template, seq):
                     val = toString(val)
                     return val
             except Exception as f:
-                Log.warning(
+                logger.warning(
                     "Can not expand " + "|".join(ops) + " in template: {{template_|json}}",
                     template_=template,
                     cause=cause,
@@ -490,6 +490,40 @@ def _simple_expand(template, seq):
             return "[template expansion error: (" + str(cause.message) + ")]"
 
     return _variable_pattern.sub(replacer, template)
+
+
+
+def get_if_type(value, json_type):
+    """
+    RETURN value IF IT IS THE CORRECT TYPE, OTHERWISE None
+    """
+    if is_json_type(value, json_type):
+        if json_type == "object":
+            return "."
+        if isinstance(value, Date):
+            return value.unix
+        return value
+    return None
+
+
+def is_json_type(value, json_type):
+    """
+    RETURN IF  value IF OF THE RIGHT TYPE
+    """
+    if value == None:
+        return False
+    elif is_text(value) and json_type == "string":
+        return value
+    elif is_list(value):
+        return False
+    elif is_data(value) and json_type == "object":
+        return True
+    elif isinstance(value, (int, float, Date)) and json_type == "number":
+        return True
+    return False
+
+
+
 
 
 from mo_json.decoder import json_decoder

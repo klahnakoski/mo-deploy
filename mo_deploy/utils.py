@@ -10,7 +10,7 @@ import operator
 import re
 
 from mo_future import text
-from mo_logs import Log
+from mo_logs import logger
 from mo_times import Date
 
 TODAY = int(Date.now().format("%y%j"))
@@ -28,7 +28,7 @@ class Requirement(object):
         if other == None:
             return self
         elif self.name != other.name:
-            Log.error("Can not compare")
+            logger.error("Can not compare")
 
         if self.type is None:
             return other
@@ -55,7 +55,7 @@ class Requirement(object):
                 #   * UNLOCK THEM ALL OR
                 #   * REMOVE install_requires FROM setuptools.json
                 # FANCY DEPENDENCY RESOLUTION IS NOT SUPPORTED
-                Log.error("versions do not intersect {v1} and {v2}", v1=self.version, v2=other.version)
+                logger.error("versions do not intersect {v1} and {v2}", v1=self.version, v2=other.version)
 
     def __data__(self):
         return text(self)

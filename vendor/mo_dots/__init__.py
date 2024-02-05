@@ -11,6 +11,7 @@
 
 import re
 import sys
+from math import isnan
 
 from mo_dots.datas import Data, data_types, is_data
 from mo_dots.lists import (
@@ -81,7 +82,7 @@ def missing(value):
     raise NotImplementedError("use is_missing")
 
 
-def is_missing(t):
+def is_missing(t) -> bool:
     # RETURN True IF EFFECTIVELY NOTHING
     class_ = t.__class__
     if class_ in null_types:
@@ -96,7 +97,7 @@ def is_missing(t):
         return t == None
 
 
-def exists(value):
+def exists(value) -> bool:
     return not is_missing(value)
 
 
@@ -139,7 +140,9 @@ def tail_field(field):
         return ".", "."
     elif "." in field:
         path = split_field(field)
-        return path[0], join_field(path[1:])
+        if path[0].startswith("."):
+            return path[0], join_field(path[1:])
+        return literal_field(path[0]), join_field(path[1:])
     else:
         return field, "."
 
@@ -620,8 +623,11 @@ def from_data(v):
         return _get(v, SLOT)
     elif _type in generator_types:
         return (from_data(vv) for vv in v)
-    else:
+    elif _type is float:
+        if isnan(v):
+            return None
         return v
+    return v
 
 
 unwrap = from_data

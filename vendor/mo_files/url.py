@@ -17,7 +17,7 @@ from mo_dots import (
     unwraplist,
     is_null,
 )
-from mo_future import PY2, is_text, text, unichr, urlparse, is_binary
+from mo_future import is_text, text, unichr, urlparse, is_binary
 from mo_logs import Log
 
 
@@ -66,26 +66,12 @@ class URL(object):
             Log.error(u"problem parsing {{value}} to URL", value=value, cause=e)
 
     def __nonzero__(self):
-        if (
-            self.scheme
-            or self.host
-            or self.port
-            or self.path
-            or self.query
-            or self.fragment
-        ):
+        if self.scheme or self.host or self.port or self.path or self.query or self.fragment:
             return True
         return False
 
     def __bool__(self):
-        if (
-            self.scheme
-            or self.host
-            or self.port
-            or self.path
-            or self.query
-            or self.fragment
-        ):
+        if self.scheme or self.host or self.port or self.path or self.query or self.fragment:
             return True
         return False
 
@@ -100,9 +86,6 @@ class URL(object):
         output = self.__copy__()
         output.query += other
         return output
-
-    def __unicode__(self):
-        return self.__str__().decode("utf8")  # ASSUME chr<128 ARE VALID UNICODE
 
     def __copy__(self):
         output = URL(None)
@@ -135,11 +118,12 @@ class URL(object):
         if self.port:
             url = url + ":" + str(self.port)
         if self.path:
-            if self.path[0] == text("/"):
-                url += str(self.path)
+            path = str(self.path)
+            if self.host and path[0] != "/":
+                url += "/" + path
             else:
-                url += "/" + str(self.path)
-        if self.query:
+                url += path
+        if len(self.query):
             url = url + "?" + value2url_param(self.query)
         if self.fragment:
             url = url + "#" + value2url_param(self.fragment)
@@ -157,20 +141,12 @@ def hex2chr(hex):
         raise e
 
 
-if PY2:
-    _map2url = {chr(i): chr(i) for i in range(32, 128)}
-    for c in "{}<>;/?@&=+$%,+":
-        _map2url[c] = "%" + str(int2hex(ord(c), 2))
-    for i in range(128, 256):
-        _map2url[chr(i)] = "%" + str(int2hex(i, 2))
-    _map2url[chr(32)] = "+"
-else:
-    _map2url = {i: unichr(i) for i in range(32, 128)}
-    for c in b"{}<>;/?@&=+$%,+":
-        _map2url[c] = "%" + int2hex(c, 2)
-    for i in range(128, 256):
-        _map2url[i] = "%" + str(int2hex(i, 2))
-    _map2url[32] = "+"
+_map2url = {i: unichr(i) for i in range(32, 128)}
+for c in b"{}<>;/?@&=+$%,+":
+    _map2url[c] = "%" + int2hex(c, 2)
+for i in range(128, 256):
+    _map2url[i] = "%" + str(int2hex(i, 2))
+_map2url[32] = "+"
 
 
 names = ["path", "query", "fragment"]
@@ -323,9 +299,7 @@ def from_paths(value):
         if any(not p.endswith("]") for p in path[1:]):
             Log.error("expecting square brackets to be paired")
         path = [
-            int(pp) if is_integer(pp) else pp
-            for i, p in enumerate(path)
-            for pp in [p.rstrip("]") if i > 0 else p]
+            int(pp) if is_integer(pp) else pp for i, p in enumerate(path) for pp in [p.rstrip("]") if i > 0 else p]
         ]
 
         d = output
@@ -337,9 +311,7 @@ def from_paths(value):
                     d[p] = []
             elif is_text(q) == is_list(d[p]):
                 Log.error(
-                    "can not index {{type}} with {{key}}",
-                    type=type(d[p]).__name__,
-                    key=q,
+                    "can not index {{type}} with {{key}}", type=type(d[p]).__name__, key=q,
                 )
 
             d = d[p]
@@ -382,12 +354,7 @@ def value2url_param(value):
         if any(is_data(v) or is_many(v) for v in value):
             output = _encode(value2json(value))
         else:
-            output = ",".join(
-                vv
-                for v in value
-                for vv in [value2url_param(v)]
-                if vv or vv == 0
-            )
+            output = ",".join(vv for v in value for vv in [value2url_param(v)] if vv or vv == 0)
     else:
         output = _encode(value2json(value))
     return output

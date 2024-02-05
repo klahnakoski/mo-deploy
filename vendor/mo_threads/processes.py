@@ -14,16 +14,18 @@ from _thread import allocate_lock
 from dataclasses import dataclass
 from time import time as unix_now
 
-from mo_dots import set_default, Null
+from mo_dots import Null
+from mo_future import is_windows, utcnow
 from mo_logs import logger, strings
 from mo_logs.exceptions import Except
+from mo_times import Timer, Date
+
 from mo_threads.queues import Queue
 from mo_threads.signals import Signal
 from mo_threads.threads import THREAD_STOP, Thread, EndOfThread, ALL_LOCK, ALL
 from mo_threads.till import Till
-from mo_times import Timer, Date
 
-DEBUG = True
+DEBUG = False
 
 next_process_id_locker = allocate_lock()
 next_process_id = 0
@@ -76,6 +78,7 @@ class Process(object):
         self.name = f"{name} ({self.process_id})"
         self.stopped = Signal("stopped signal for " + strings.quote(name))
         self.please_stop = Signal("please stop for " + strings.quote(name))
+        self.second_last_stdin = None
         self.last_stdin = None
         self.stdin = Queue("stdin for process " + strings.quote(name), silent=not self.debug)
         self.stdout = Queue("stdout for process " + strings.quote(name), silent=not self.debug)
@@ -98,7 +101,7 @@ class Process(object):
                 stderr=subprocess.PIPE,
                 bufsize=bufsize,
                 cwd=cwd,
-                env={str(k): str(v) for k, v in set_default(env, os.environ).items()},
+                env={str(k): str(v) for k, v in {**os.environ, **(env or {})}.items()},
                 shell=shell,
             )
 
@@ -106,7 +109,7 @@ class Process(object):
             self.stderr_status = Status(unix_now() + startup_timeout)
             self.kill_once = self.kill
             self.children = (
-                Thread.run(
+                Thread(
                     self.name + " stdin",
                     self._writer,
                     service.stdin,
@@ -114,7 +117,7 @@ class Process(object):
                     please_stop=self.please_stop,
                     parent_thread=Null,
                 ),
-                Thread.run(
+                Thread(
                     self.name + " stdout",
                     self._reader,
                     "stdout",
@@ -123,8 +126,9 @@ class Process(object):
                     self.stdout_status,
                     please_stop=self.please_stop,
                     parent_thread=Null,
+                    daemon=True,  # MIGHT LOCKUP, ONLY WAY TO KILL IT
                 ),
-                Thread.run(
+                Thread(
                     self.name + " stderr",
                     self._reader,
                     "stderr",
@@ -133,9 +137,12 @@ class Process(object):
                     self.stderr_status,
                     please_stop=self.please_stop,
                     parent_thread=Null,
+                    daemon=True,  # MIGHT LOCKUP, ONLY WAY TO KILL IT
                 ),
-                Thread.run(self.name + " monitor", self._monitor, please_stop=self.please_stop, parent_thread=self),
+                Thread(self.name + " monitor", self._monitor, please_stop=self.please_stop, parent_thread=self),
             )
+            for child in self.children:
+                child.start()
         except Exception as cause:
             logger.error("Can not call  dir={cwd}", cwd=cwd, cause=cause)
 
@@ -162,15 +169,17 @@ class Process(object):
 
     def join(self, till=None, raise_on_error=True):
         on_error = logger.error if raise_on_error else logger.warning
-        self.stopped.wait(till=till)
-        if not self.children:
-            return
-        _, _, _, monitor_thread = self.children
-        monitor_thread.join(till=till)
-
+        self.stopped.wait(till=till)  # TRIGGERED BY _monitor THREAD WHEN DONE (self.children is None)
+        if self.returncode is None:
+            self.kill()
+            on_error(
+                "{process} TIMEOUT\n{stderr}",
+                process=self.name,
+                stderr=list(self.stderr),
+            )
         if self.returncode != 0:
             on_error(
-                "{process} FAIL: returncode={code}\n{stderr}",
+                "{process} FAIL: returncode={code|quote}\n{stderr}",
                 process=self.name,
                 code=self.service.returncode,
                 stderr=list(self.stderr),
@@ -193,12 +202,12 @@ class Process(object):
             while not please_stop:
                 now = unix_now()
                 last_out = max(self.stdout_status.last_read, self.stderr_status.last_read)
-                timeout = last_out + self.timeout - now
-                if timeout < 0:
+                took = now - last_out
+                if took > self.timeout:
                     self.kill_once()
                     logger.warning(
                         "{last_sent} for {name} last used {last_used} took over {timeout} seconds to respond",
-                        last_sent=self.last_stdin,
+                        last_sent=self.second_last_stdin,
                         last_used=Date(last_out).format(),
                         timeout=self.timeout,
                         name=self.name,
@@ -221,7 +230,6 @@ class Process(object):
             stdout_thread.join(till=wait_limit)
         except:
             # THREAD LOST ON PIPE.readline()
-            self.kill_once()
             self.stdout.close()
             stdout_thread.release()
             stdout_thread.end_of_thread = EndOfThread(None, None)
@@ -234,7 +242,6 @@ class Process(object):
             stderr_thread.join(till=wait_limit)
         except:
             # THREAD LOST ON PIPE.readline()
-            self.kill_once()
             self.stderr.close()
             stderr_thread.release()
             stderr_thread.end_of_thread = EndOfThread(None, None)
@@ -283,13 +290,14 @@ class Process(object):
                 break
             elif line is None:
                 continue
+            self.second_last_stdin = self.last_stdin
             self.last_stdin = line
             self.debug and logger.info(
                 "send line: {line}", process=self.name, line=line.rstrip(),
             )
             try:
                 pipe.write(line.encode("utf8"))
-                pipe.write(b"\n")
+                pipe.write(EOL)
                 pipe.flush()
             except Exception as cause:
                 # HAPPENS WHEN PROCESS IS DONE
@@ -298,13 +306,12 @@ class Process(object):
         self.debug and logger.info("writer closed")
 
     def kill(self):
-        self._kill()
         self.kill_once = Null
-
-    def _kill(self):
         try:
+            if self.service.returncode is not None:
+                return
             self.service.kill()
-            logger.info("{process} was successfully terminated.", process=self.name, stack_depth=2)
+            logger.info("{process} was successfully terminated.", process=self.name, stack_depth=1)
         except Exception as cause:
             cause = Except.wrap(cause)
             if "The operation completed successfully" in cause:
@@ -315,6 +322,12 @@ class Process(object):
             logger.warning(
                 "Failure to kill process {process|quote}", process=self.name, cause=cause,
             )
+
+
+if is_windows:
+    EOL = b"\r\n"
+else:
+    EOL = b"\n"
 
 
 def os_path(path):
