@@ -135,6 +135,10 @@ class Module(object):
             ]
             content = to_data(yaml.safe_load(travis_file.read()))
             python = content.python = []
+
+            # DO NOT BUILD ON DEV BRANCH
+            content.branches['except'] = ["dev"]
+
             content.jobs.include = []
             for v in tested_versions:
                 if v in ("3.8", "3.9"):
@@ -391,6 +395,8 @@ class Module(object):
         try:
             self.local([self.git, "checkout", self.svn_branch])
         except Exception as cause:
+            if "would be overwritten by checkout" in cause:
+                logger.error("branch needs cleanup", cause=cause)
             try:
                 self.local([self.git, "checkout", self.dev_branch])
                 self.local([self.git, "checkout", "-b", self.svn_branch])
