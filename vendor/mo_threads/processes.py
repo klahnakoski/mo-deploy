@@ -92,10 +92,10 @@ class Process(object):
             else:
                 cwd = str(cwd)
 
-            command = [str(p) for p in params]
-            self.debug and logger.info("command: {command}", command=command)
+            self.command = [str(p) for p in params]
+            self.debug and logger.info("command: {command}", command=self.command)
             self.service = service = subprocess.Popen(
-                [str(p) for p in params],
+                self.command,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -114,7 +114,6 @@ class Process(object):
                     self._writer,
                     service.stdin,
                     self.stdin,
-                    please_stop=self.please_stop,
                     parent_thread=Null,
                 ),
                 Thread(
@@ -147,7 +146,7 @@ class Process(object):
             logger.error("Can not call  dir={cwd}", cwd=cwd, cause=cause)
 
         self.debug and logger.info(
-            "{process} START: {command}", process=self.name, command=" ".join(map(strings.quote, params)),
+            "{process} START: {command}", process=self.name, command=self.command,
         )
         if not parent_thread:
             parent_thread = Thread.current()
@@ -173,13 +172,13 @@ class Process(object):
         if self.returncode is None:
             self.kill()
             on_error(
-                "{process} TIMEOUT\n{stderr}",
+                "TIMEOUT: {process|quote}\n\tcommand={command}\n\terror={stderr}",
                 process=self.name,
                 stderr=list(self.stderr),
             )
         if self.returncode != 0:
             on_error(
-                "{process} FAIL: returncode={code|quote}\n{stderr}",
+                "FAILED: {process|quote}\n\tcommand={command}\n\terror={stderr}",
                 process=self.name,
                 code=self.service.returncode,
                 stderr=list(self.stderr),
@@ -250,7 +249,7 @@ class Process(object):
                     del ALL[stderr_thread.ident]
             stderr_thread.stopped.go()
 
-        self.stdin.close()
+        self.stdin.add(THREAD_STOP)
         stdin_thread.join()
 
         self.stopped.go()
@@ -282,9 +281,11 @@ class Process(object):
             pipe.close()
 
     def _writer(self, pipe, send, please_stop):
+        stop_reason = "asked to stop"
         while not please_stop:
             line = send.pop(till=please_stop)
             if line is THREAD_STOP:
+                stop_reason = "stop in queue"
                 please_stop.go()
                 self.debug and logger.info("got THREAD_STOP")
                 break
@@ -301,8 +302,11 @@ class Process(object):
                 pipe.flush()
             except Exception as cause:
                 # HAPPENS WHEN PROCESS IS DONE
+                stop_reason = "pipe closed"
                 self.debug and logger.info("pipe closed")
                 break
+        if self.returncode is None:
+            logger.info("write to stdin is done, but not process {reason}", reason=stop_reason)
         self.debug and logger.info("writer closed")
 
     def kill(self):
@@ -311,7 +315,7 @@ class Process(object):
             if self.service.returncode is not None:
                 return
             self.service.kill()
-            logger.info("{process} was successfully terminated.", process=self.name, stack_depth=1)
+            logger.info("{process} was sent kill signal", process=self.name, stack_depth=1)
         except Exception as cause:
             cause = Except.wrap(cause)
             if "The operation completed successfully" in cause:

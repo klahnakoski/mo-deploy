@@ -179,6 +179,7 @@ class LifetimeManager:
                 del self.avail_processes[i]
                 process.stdout_status.last_read = now
                 process.timeout = timeout
+                process.debug = debug
                 self.inuse_processes.append((key, process, now))
                 if DEBUG:
                     from mo_json import value2json
@@ -196,12 +197,12 @@ class LifetimeManager:
             params=[cmd()],
             cwd=cwd,
             env=env,
-            debug=debug,
             shell=shell,
             bufsize=bufsize,
             timeout=START_TIMEOUT,
             parent_thread=self.worker_thread,
         )
+        process.debug = debug  # NO NEED TO SET DEBUG ON QUEUES IN PROCESS
         with self.locker:
             self.inuse_processes.append((process_key, process, unix_now()))
 
@@ -245,6 +246,7 @@ class LifetimeManager:
                     DEBUG and logger.info("return process {process}", process=process.name)
                     del self.inuse_processes[i]
                     process.timeout = AVAIL_TIMEOUT
+                    process.debug = False
                     self.avail_processes.append((key, process, unix_now()))
                     self.wakeup.go()
                     break
@@ -271,10 +273,14 @@ class LifetimeManager:
                 pass
 
         for _, process, _ in stale:
-            try:
-                process.join(raise_on_error=True)
-            except Exception:
-                pass
+            end_timeout = Till(seconds=START_TIMEOUT)
+            while not end_timeout:
+                value = process.stdout.pop(till=end_timeout)
+                if value == THREAD_STOP:
+                    break
+                if value and value.startswith(END_OF_COMMAND_MARKER):
+                    break
+            process.join(raise_on_error=False)
 
         if DEBUG and stale:
             for key, process, last_used in stale:

@@ -4,3 +4,5 @@ requests
 keyring
 pyyaml
 wheel
+toposort
+hjson

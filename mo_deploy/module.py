@@ -8,8 +8,6 @@
 #
 from mo_future import Mapping
 
-import yaml
-
 from mo_deploy.utils import Requirement, parse_req
 from mo_dots import coalesce, listwrap, to_data, exists, from_data
 from mo_dots.lists import last
@@ -17,6 +15,7 @@ from mo_files import File, TempDirectory, URL
 from mo_future import is_binary, is_text, sort_using_key, text, first
 from mo_http import http
 from mo_json import value2json, json2value
+from mo_json_config import ini2value
 from mo_logs import Except, logger, strings
 from mo_math import randoms
 from mo_threads import Thread, Till, Lock, lock
@@ -125,61 +124,29 @@ class Module(object):
     def synch_travis_file(self):
         travis_file = self.directory / ".travis.yml"
         if travis_file.exists:
-            logger.info("synch .travis.yml file")
-
-            setup = (self.directory / SETUPTOOLS).read_json(leaves=False)
-            tested_versions = [
-                c.split("::")[-1].strip()
-                for c in setup.classifiers
-                if c.startswith("Programming Language :: Python :: ")
-            ]
-            content = to_data(yaml.safe_load(travis_file.read()))
-            python = content.python = []
-
-            # DO NOT BUILD ON DEV BRANCH
-            content.branches['except'] = ["dev"]
-
-            content.jobs.include = []
-            for v in tested_versions:
-                if v in ("3.8", "3.9"):
-                    python += [str(v)]
-                elif v == "3.10":
-                    content.jobs.include += [{
-                        "name": "Python 3.10",
-                        "dist": "jammy",  # Ubuntu 22.04
-                        "python": "3.10",
-                        "before_install": [
-                            # https://discourse.charmhub.io/t/cannot-install-dependencies-modulenotfounderror-no-module-named-setuptools-command-build/7374
-                            "pip install wheel==0.37.1",
-                            "pip install setuptools==45.2.0",
-                        ],
-                    }]
-                elif v == "3.11":
-                    content.jobs.include += [{
-                        "name": "Python 3.11",
-                        "dist": "jammy",  # Ubuntu 22.04
-                        "python": "3.11",
-                        "before_install": [
-                            "pip install --upgrade pip",
-                            "pip install wheel==0.41.2",
-                            "pip install setuptools==65.5.0",
-                        ],
-                    }]
-                elif v == "3.12":
-                    content.jobs.include += [{
-                        "name": "Python 3.12",
-                        "dist": "jammy",  # Ubuntu 22.04
-                        "python": "3.12",
-                        "before_install": [
-                            "pip install --upgrade pip",
-                            "pip install wheel==0.42.0",
-                            "pip install setuptools==69.0.3",
-                        ],
-                    }]
-                else:
-                    logger.error("Unhandled version {{version}}", version=v)
-
-            travis_file.write(yaml.dump(from_data(content), default_flow_style=False, sort_keys=False))
+            # copy from mo-dots
+            File.copy("~/code/mo-dots/.github", self.directory/".github")
+            # make coverage.rc file
+            coverage_config = File("~/code/mo-dots/packaging/coverage.ini").read_ini()
+            coverage_config.run.source = "./"+self.name.replace("-", "_")
+            (self.directory/"packaging"/"coverage.ini").write_ini(coverage_config)
+            # update readme badge
+            readme = self.directory / "README.md"
+            content = readme.read()
+            # BEFORE
+            # [![Build Status](https://app.travis-ci.com/klahnakoski/mo-logs.svg?branch=master)](https://travis-ci.com/github/klahnakoski/mo-logs)
+            # AFTER
+            # [![Build Status](https://github.com/klahnakoski/mo-dots/actions/workflows/build.yml/badge.svg?branch=master)](https://github.com/klahnakoski/mo-dots/actions/workflows/build.yml)
+            try:
+                p, s = "[![Build Status](", self.name + ")"
+                build_status = p + strings.between(content, p, s) + s
+                if build_status:
+                    content = content.replace(build_status, f" [![Build Status](https://github.com/klahnakoski/{self.name}/actions/workflows/build.yml/badge.svg?branch=master)](https://github.com/klahnakoski/{self.name}/actions/workflows/build.yml)")
+            except Exception as e:
+                pass
+            readme.write(content)
+            # remove travis file
+            travis_file.delete()
 
     def gen_setup_py_file(self):
         logger.info("write setup.py")
@@ -776,9 +743,10 @@ class Module(object):
             "setuptools.json",
             "requirements.lock",
             ".gitignore",
+            ".travis.yml",
             "README.md",
         ]  # , ".travis.yml"]
-        ignored_dir = ["packaging/", "tests/", "vendor/"]
+        ignored_dir = ["packaging/", "tests/", "vendor/", ".github/"]
 
         # get current version, hash
         version, revision = self.get_version()

@@ -9,13 +9,14 @@
 from mo_deploy.module import Module
 from mo_deploy.module_graph import ModuleGraph
 from mo_dots import listwrap, from_data
-from mo_files import File
+from mo_files import File, URL
 from mo_logs import logger, constants, startup
-from mo_threads import Command, stop_main_thread
+from mo_threads import Process, stop_main_thread, Command
 from pyLibrary.utils import Version
 
 
 def main():
+
     try:
         settings = startup.read_settings()
         constants.set(settings.constants)

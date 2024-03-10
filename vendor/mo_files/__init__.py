@@ -16,10 +16,10 @@ from datetime import datetime
 from mimetypes import MimeTypes
 from tempfile import NamedTemporaryFile, mkdtemp
 
-from mo_dots import Null, coalesce, get_module, is_list
+from mo_dots import Null, coalesce, get_module, is_list, to_data
 from mo_files import mimetype
 from mo_files.url import URL
-from mo_future import text, is_text
+from mo_future import text, is_text, ConfigParser, StringIO
 from mo_logs import Except, Log
 from mo_logs.exceptions import get_stacktrace
 from mo_math import randoms
@@ -156,17 +156,14 @@ class File(object):
         :param pattern: REGULAR EXPRESSION TO MATCH NAME (NOT INCLUDING PATH)
         :return: LIST OF File OBJECTS THAT HAVE MATCHING NAME
         """
-        output = []
-
         def _find(dir):
             if re.match(pattern, dir._filename.split("/")[-1]):
-                output.append(dir)
+                yield dir
             if dir.is_directory():
                 for c in dir.children:
-                    _find(c)
+                    yield from _find(c)
 
-        _find(self)
-        return output
+        yield from _find(self)
 
     def set_extension(self, ext):
         """
@@ -186,7 +183,7 @@ class File(object):
         """
         RETURN NEW FILE WITH EXTENSION ADDED (OLD EXTENSION IS A SUFFIX)
         """
-        return File(self._filename + "." + text(ext))
+        return File(self._filename + "." + str(ext))
 
     def set_name(self, name):
         """
@@ -294,6 +291,30 @@ class File(object):
                     f.write(encrypt(d, self.key).encode("utf8"))
                 else:
                     f.write(d.encode("utf8"))
+
+    def read_ini(self, encoding="utf8"):
+        buff = StringIO(self.read(encoding))
+        config = ConfigParser()
+        config._read(buff, "dummy")
+
+        output = {}
+        for section in config.sections():
+            output[section] = s = {}
+            for k, v in config.items(section):
+                s[k] = v
+        return to_data(output)
+
+    def write_ini(self, data, encoding="utf8"):
+        config = ConfigParser()
+
+        # Populate ConfigParser with the dictionary
+        for section, keys in data.items():
+            config.add_section(section)
+            for key, value in keys.items():
+                config.set(section, key, value)
+
+        with open(self.os_path, 'w') as configfile:
+            config.write(configfile)
 
     def __iter__(self):
         # NOT SURE HOW TO MAXIMIZE FILE READ SPEED
@@ -618,6 +639,6 @@ def add_suffix(filename, suffix):
     path = filename.split("/")
     parts = path[-1].split(".")
     i = max(len(parts) - 2, 0)
-    parts[i] = parts[i] + "." + text(suffix).strip(".")
+    parts[i] = parts[i] + "." + str(suffix).strip(".")
     path[-1] = ".".join(parts)
     return File("/".join(path))
