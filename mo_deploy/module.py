@@ -549,7 +549,11 @@ class Module(object):
                 for line in stdout
                 if line and not any(line.startswith(p) for p in ["setuptools=", "wheel=", "pip=", "build=", f"{self.name}="])
             ]
-            lock_lines = [f"# Tests pass with these versions {Date.now().format('%Y-%m-%d')}", *lock_reqs]
+            lock_lines = [
+                f"# Tests pass with these versions {Date.now().format('%Y-%m-%d')}",
+                f"# pip install --no-deps -r tests/requirements.lock",
+                *lock_reqs
+            ]
 
             lockfile = self.directory / "tests" / "requirements.lock"
             with Timer("update test requirements", verbose=True):

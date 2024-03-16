@@ -70,8 +70,8 @@
 //        "mo-parsing", "mo-json-config", "mo-threads",
 //        "mo-testing", "mo-threads", "mo-files", "mo-streams"  // mo-sql-parsing testing
 //        "mo-sql-parsing9", "mo-sql-parsing10",
-//          "mo-files", "mo-times", "mo-kwargs", "mo-json-config", "mo-threads", "mo-streams"
-//          "jx-python"
+//        "mo-files", "mo-times", "mo-kwargs", "mo-json-config", "mo-threads", "mo-streams"
+//        "jx-python"
         "jx-sqlite", "mo-streams"
 //        "mo-black",
 //        "jx-mysql",
