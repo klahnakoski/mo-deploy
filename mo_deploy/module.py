@@ -74,7 +74,7 @@ class Module(object):
         master_rev = self.master_revision()
         try:
             self.update_setup_json_file(next_version)
-            self.synch_travis_file()
+            self.synch_github_actions()
             self.gen_setup_py_file()
             # TOO SOON TO RUN THIS, MUST HAVE THE DEPENDENCIES INSTALLED FIRST
             # logger.info("if you are stalled here, it is because import __deploy__ may have imported mo_threads and now has an active thread that has not been told to shutdown")
@@ -121,7 +121,10 @@ class Module(object):
         self.local([self.git, "checkout", self.dev_branch])
         self.local([self.git, "merge", self.master_branch])
 
-    def synch_travis_file(self):
+    def synch_github_actions(self):
+        # copy from mo-dots
+        File.copy("~/code/mo-dots/.github", self.directory / ".github")
+
         travis_file = self.directory / ".travis.yml"
         if travis_file.exists:
             # copy from mo-dots
@@ -162,6 +165,8 @@ class Module(object):
         )
         (self.directory / "packaging" / "setup.py").write(content)
         (self.directory / "setup.py").write(content)
+        # FOR SOME REASON tests GET INCLUDED
+        (self.directory / "MANIFEST.in").write("global-exclude tests/*\nglobal-exclude MANIFEST.in\n")
 
     @cache()
     def last_deploy(self):
@@ -183,14 +188,16 @@ class Module(object):
     def scrub_pypi_residue(self):
         with Timer("cleanup pypi residue", verbose=True):
             with self.install_locker:
+                (self.directory / "MANIFEST.in").delete()
                 (self.directory / "setup.py").delete()
                 (self.directory / "README.txt").delete()
                 (self.directory / "build").delete()
                 (self.directory / "dist").delete()
-                (self.directory / (self.directory.stem.replace("-", "_") + ".egg-info")).delete()
 
                 for f in self.directory.leaves:
-                    if f.extension == "pyc":
+                    if "__pycache__" in f.abs_path:
+                        f.delete()
+                    elif f.extension in ("pyc", "egg-info"):
                         f.delete()
 
     def pypi(self):
@@ -549,6 +556,11 @@ class Module(object):
                 for line in stdout
                 if line and not any(line.startswith(p) for p in ["setuptools=", "wheel=", "pip=", "build=", f"{self.name}="])
             ]
+            for i, lock in enumerate(lock_reqs):
+                if "numpy" in lock:
+                    lock_reqs[i] = lock.replace("==", "  # ")+" version locking causes:  No module named 'distutils'"
+                if "pandas" in lock:
+                    lock_reqs[i] = lock.replace("==", "  # ")+" version locking causes:  Could not build wheels for pandas"
             lock_lines = [
                 f"# Tests pass with these versions {Date.now().format('%Y-%m-%d')}",
                 f"# pip install --no-deps -r tests/requirements.lock",

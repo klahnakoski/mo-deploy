@@ -178,7 +178,7 @@ class Process(object):
             )
         if self.returncode != 0:
             on_error(
-                "FAILED: {process|quote}\n\tcommand={command}\n\terror={stderr}",
+                "FAILED: {process|quote}\n\tcommand={command}\n\treturncode={code}\n\terror={stderr}",
                 process=self.name,
                 code=self.service.returncode,
                 stderr=list(self.stderr),

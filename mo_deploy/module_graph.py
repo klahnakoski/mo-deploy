@@ -16,7 +16,7 @@ from mo_deploy.module import Module
 from mo_deploy.utils import Requirement, TODAY
 from mo_dots import listwrap
 from mo_http import http
-from mo_logs import logger, logger
+from mo_logs import logger
 from mo_logs.exceptions import Except
 from mo_math import UNION
 from mo_threads import Lock, Thread, join_all_threads

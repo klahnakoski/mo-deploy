@@ -51,7 +51,7 @@ class Requirement(object):
             else:
                 # IF YOU ARE HERE, THEN THERE IS MORE THAN ONE PATH TO THIS LIBRARY
                 # AND THE AUTOMATION HAS DECIDED ON TWO DIFFERENT VERSIONS.
-                #   * LOCK THEvVERSIONS FOR ALL DEPENDENCIES, OR
+                #   * LOCK THE VERSIONS FOR ALL DEPENDENCIES, OR
                 #   * UNLOCK THEM ALL OR
                 #   * REMOVE install_requires FROM setuptools.json
                 # FANCY DEPENDENCY RESOLUTION IS NOT SUPPORTED

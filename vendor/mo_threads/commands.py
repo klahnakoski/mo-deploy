@@ -99,7 +99,7 @@ class Command(object):
                 "{process} FAIL: returncode={code}\n{stderr}",
                 process=self.name,
                 code=self.returncode,
-                stderr=list(self.stderr),
+                stderr=list(self.stderr)
             )
         return self
 
