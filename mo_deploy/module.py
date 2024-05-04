@@ -99,7 +99,7 @@ class Module(object):
                 except Exception as cause:
                     logger.warning("Tests did not pass", cause=cause)
                     value = input("Did not pass tests.  Try again? (y/N): ")
-                    if value not in "yY":
+                    if value.strip() not in "yY":
                         logger.error("Can not install self", cause=cause)
             self.update_dev("update lockfile")  # ONE OF THE TEST THREADS UPDATED THE REQUIREMENTS FILE
             self.update_master_locally(next_version)
@@ -562,7 +562,7 @@ class Module(object):
                 if "pandas" in lock:
                     lock_reqs[i] = lock.replace("==", "  # ")+" version locking causes:  Could not build wheels for pandas"
             lock_lines = [
-                f"# Tests pass with these versions {Date.now().format('%Y-%m-%d')}",
+                f"# Tests pass with python {python_version} on {Date.now().format('%Y-%m-%d')} and with these versions",
                 f"# pip install --no-deps -r tests/requirements.lock",
                 *lock_reqs
             ]
