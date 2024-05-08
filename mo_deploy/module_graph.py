@@ -36,14 +36,18 @@ class ModuleGraph(object):
         self.modules["__deploy__"] = DeployModule(self, deploy)
 
         graph_lock = Lock()
+        directory_lockers = {m.directory: Lock() for m in self.modules.values()}
 
         def info(m, please_stop):
             module_name = m.name
-            m.clean_branches()
-            # FIND DEPENDENCIES FOR EACH MODULE
-            graph[module_name] = set()
-            last_version = m.get_version()[0]
-            curr_versions[module_name] = last_version
+            with directory_lockers[m.directory]:
+                m.clean_branches()
+                last_version = m.get_version()[0]
+
+            with graph_lock:
+                # FIND DEPENDENCIES FOR EACH MODULE
+                graph[module_name] = set()
+                curr_versions[module_name] = last_version
 
             for req in m.get_current_requirements([
                 Requirement(k, "==", v) for k, v in curr_versions.items()
@@ -80,10 +84,12 @@ class ModuleGraph(object):
             "Dependencies are {{modules}}",
             modules=[m.name for m in deploy_dependencies],
         )
+
         # PREFETCH SOME MODULE STATUS
-        def pre_fetch_state(d, please_stop):
-            d.please_upgrade()
-            d.last_deploy()
+        def pre_fetch_state(module, please_stop):
+            with directory_lockers[module.directory]:
+                module.please_upgrade()
+                module.last_deploy()
 
         with Timer("get modules' status"):
             join_all_threads(

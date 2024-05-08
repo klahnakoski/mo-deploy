@@ -8,6 +8,7 @@
 #
 from mo_deploy.module import NO_VERSION, FIRST_VERSION
 from mo_dots import Data
+from mo_files import File
 from pyLibrary.meta import cache
 
 
@@ -19,6 +20,7 @@ class DeployModule:
         self.name = "__deploy__"
         self.package_name = "__deploy__"
         self.version = FIRST_VERSION
+        self.directory = File("__deploy__")
 
     def setup(self):
         pass

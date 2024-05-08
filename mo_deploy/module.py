@@ -395,7 +395,14 @@ class Module(object):
     def update_dev(self, message):
         logger.info("Update git dev branch for {{dir}}", dir=self.directory.abs_path)
         self.scrub_pypi_residue()
-        self.local([self.git, "add", "-A"])
+        while True:
+            try:
+                self.local([self.git, "add", "-A"])
+            except Exception as cause:
+                if ".git/index.lock': File exists." in cause:
+                    continue
+                raise cause
+
         process, stdout, stderr = self.local([self.git, "commit", "-m", message], raise_on_error=False)
         if any(line.startswith("nothing to commit, working") for line in stdout) or process.returncode == 0:
             pass
