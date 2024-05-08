@@ -32,7 +32,8 @@ from mo_times import Timer
 from mo_times.dates import Date
 from mo_times.durations import Duration
 
-from mo_json import ESCAPE_DCT, float2json, scrub, quote
+from mo_json import ESCAPE_DCT, float2json, quote
+from mo_json.scrubber import Scrubber
 
 json_decoder = json.JSONDecoder().decode
 _get = object.__getattribute__
@@ -117,11 +118,9 @@ class cPythonJSONEncoder(object):
             return pretty_json(value)
 
         try:
-            with Timer("scrub", too_long=0.1):
-                scrubbed = scrub(value)
             param = {"size": 0}
             with Timer("encode {{size}} characters", param=param, too_long=0.1):
-                output = text(self.encoder(scrubbed))
+                output = str(self.encoder(value))
                 param["size"] = len(output)
                 return output
         except Exception as cause:
@@ -129,7 +128,7 @@ class cPythonJSONEncoder(object):
             from mo_logs import Log
 
             cause = Except.wrap(cause)
-            Log.warning("problem serializing {{type}}", type=text(repr(value)), cause=cause)
+            Log.warning("problem serializing {{type}}", type=str(repr(value)), cause=cause)
             raise cause
 
 
@@ -173,7 +172,7 @@ def _value2json(value, _buffer):
             _value2json(d, _buffer)
             return
         elif type in (int, long, Decimal):
-            append(_buffer, text(value))
+            append(_buffer, str(value))
         elif type is float:
             if math.isnan(value) or math.isinf(value):
                 append(_buffer, "null")
@@ -214,11 +213,11 @@ def _value2json(value, _buffer):
         else:
             from mo_logs import Log
 
-            Log.error(text(repr(value)) + " is not JSON serializable")
+            Log.error(str(repr(value)) + " is not JSON serializable")
     except Exception as e:
         from mo_logs import Log
 
-        Log.error(text(repr(value)) + " is not JSON serializable", cause=e)
+        Log.error(str(repr(value)) + " is not JSON serializable", cause=e)
 
 
 def _list2json(value, _buffer):
@@ -259,7 +258,7 @@ def _dict2json(value, _buffer):
     except Exception as e:
         from mo_logs import Log
 
-        Log.error(text(repr(value)) + " is not JSON serializable", cause=e)
+        Log.error(str(repr(value)) + " is not JSON serializable", cause=e)
 
 
 ARRAY_ROW_LENGTH = 80
@@ -270,6 +269,10 @@ INDENT = "    "
 
 
 def pretty_json(value):
+    scrub = Scrubber().scrub
+    return _pretty_json(value, scrub)
+
+def _pretty_json(value, scrub):
     try:
         if value is False:
             return "false"
@@ -280,8 +283,11 @@ def pretty_json(value):
         elif is_data(value):
             try:
                 value = from_data(value)
+                if not is_data(value):
+                    # Data can hold primitives
+                    return _pretty_json(value, scrub)
                 items = sort_using_key(value.items(), lambda r: r[0])
-                values = [quote(k) + PRETTY_COLON + pretty_json(v) for k, v in items if v != None]
+                values = [quote(k) + PRETTY_COLON + _pretty_json(v, scrub) for k, v in items if v != None]
                 if not values:
                     return "{}"
                 elif len(values) == 1:
@@ -306,7 +312,7 @@ def pretty_json(value):
                 value = value.decode("utf8")
             try:
                 if "\n" in value and value.strip():
-                    return pretty_json({"$concat": value.split("\n"), "separator": "\n"})
+                    return _pretty_json({"$concat": value.split("\n"), "separator": "\n"}, scrub)
                 else:
                     return quote(value)
             except Exception as cause:
@@ -323,7 +329,7 @@ def pretty_json(value):
                                 c2 = ESCAPE_DCT[c]
                             except Exception:
                                 c2 = c
-                            c3 = text(c2)
+                            c3 = str(c2)
                             acc.append(c3)
                         except BaseException:
                             pass
@@ -342,13 +348,13 @@ def pretty_json(value):
                 return "[]"
 
             if ARRAY_MAX_COLUMNS == 1:
-                return "[\n" + ",\n".join([indent(pretty_json(v)) for v in value]) + "\n]"
+                return "[\n" + ",\n".join([indent(_pretty_json(v, scrub)) for v in value]) + "\n]"
 
             if len(value) == 1:
-                j = pretty_json(value[0])
+                j = _pretty_json(value[0], scrub)
                 return "[" + j + "]"
 
-            js = [pretty_json(v) for v in value]
+            js = [_pretty_json(v, scrub) for v in value]
             max_len = max(*[len(j) for j in js])
             if len(js) < ARRAY_MIN_ITEMS and max_len <= ARRAY_ITEM_MAX_LENGTH and not any("\n" in j for j in js):
                 # ALL TINY VALUES
@@ -358,7 +364,7 @@ def pretty_json(value):
                 if len(js) <= num_columns:  # DO NOT ADD \n IF ONLY ONE ROW
                     return "[" + PRETTY_COMMA.join(js) + "]"
                 if num_columns == 1:  # DO NOT rjust IF THERE IS ONLY ONE COLUMN
-                    return "[\n" + ",\n".join([indent(pretty_json(v)) for v in value]) + "\n]"
+                    return "[\n" + ",\n".join([indent(_pretty_json(v, scrub)) for v in value]) + "\n]"
 
                 content = ",\n".join(
                     PRETTY_COMMA.join(j.rjust(max_len) for j in js[r : r + num_columns])
@@ -389,30 +395,30 @@ def pretty_json(value):
                 from mo_logs import Log
 
                 Log.error("not expected", cause=cause)
-        elif hasattr(value, "__data__"):
-            d = value.__data__()
-            return pretty_json(d)
         elif hasattr(value, "__json__"):
             j = value.__json__()
             if j == None:
                 return "   null   "  # TODO: FIND OUT WHAT CAUSES THIS
-            return pretty_json(json_decoder(j))
+            return _pretty_json(json_decoder(j), scrub)
+        elif hasattr(value, "__data__"):
+            d = value.__data__()
+            return _pretty_json(d, scrub)
         elif scrub(value) is None:
             return "null"
         elif hasattr(value, "__iter__"):
-            return pretty_json(list(value))
+            return _pretty_json(list(value), scrub)
         elif hasattr(value, "__call__"):
             return "null"
         else:
             try:
                 if int(value) == value:
-                    return text(int(value))
+                    return str(int(value))
             except Exception:
                 pass
 
             try:
                 if float(value) == value:
-                    return text(float(value))
+                    return str(float(value))
             except Exception:
                 pass
 
@@ -434,7 +440,7 @@ def problem_serializing(value, e=None):
         typename = "<error getting name>"
 
     try:
-        rep = text(repr(value))
+        rep = str(repr(value))
     except Exception as _:
         rep = None
 
@@ -492,7 +498,7 @@ def unicode_key(key):
         from mo_logs import Log
 
         Log.error("{{key|quote}} is not a valid key", key=key)
-    return quote(text(key))
+    return quote(str(key))
 
 
 if PYPY:

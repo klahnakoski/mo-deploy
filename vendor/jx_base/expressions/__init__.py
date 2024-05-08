@@ -1,12 +1,4 @@
-from mo_dots import set_default
-
-from jx_base.expressions._utils import (
-    jx_expression,
-    merge_types,
-    operators,
-    JX,
-    _jx_expression,
-)
+from jx_base.expressions._utils import jx_expression, merge_types, operators, JX, _jx_expression
 from jx_base.expressions.abs_op import AbsOp
 from jx_base.expressions.add_op import AddOp
 from jx_base.expressions.aggregate_op import AggregateOp
@@ -18,16 +10,6 @@ from jx_base.expressions.avg_op import AvgOp
 from jx_base.expressions.base_binary_op import BaseBinaryOp
 from jx_base.expressions.base_inequality_op import BaseInequalityOp
 from jx_base.expressions.base_multi_op import BaseMultiOp
-from jx_base.expressions.basic_add_op import BasicAddOp
-from jx_base.expressions.basic_boolean_op import BasicBooleanOp
-from jx_base.expressions.basic_eq_op import BasicEqOp
-from jx_base.expressions.basic_in_op import BasicInOp
-from jx_base.expressions.basic_index_of_op import BasicIndexOfOp
-from jx_base.expressions.basic_mul_op import BasicMulOp
-from jx_base.expressions.basic_multi_op import BasicMultiOp
-from jx_base.expressions.basic_not_op import BasicNotOp
-from jx_base.expressions.basic_starts_with_op import BasicStartsWithOp
-from jx_base.expressions.basic_substring_op import BasicSubstringOp
 from jx_base.expressions.between_op import BetweenOp
 from jx_base.expressions.call_op import CallOp
 from jx_base.expressions.cardinality_op import CardinalityOp
@@ -59,7 +41,6 @@ from jx_base.expressions.gt_op import GtOp
 from jx_base.expressions.gte_op import GteOp
 from jx_base.expressions.in_op import InOp
 from jx_base.expressions.inner_join_op import InnerJoinOp
-from jx_base.expressions.integer_op import ToIntegerOp
 from jx_base.expressions.is_boolean_op import IsBooleanOp
 from jx_base.expressions.is_integer_op import IsIntegerOp
 from jx_base.expressions.is_number_op import IsNumberOp
@@ -100,28 +81,50 @@ from jx_base.expressions.reg_exp_op import RegExpOp
 from jx_base.expressions.right_op import RightOp
 from jx_base.expressions.rows_op import RowsOp
 from jx_base.expressions.script_op import ScriptOp
-from jx_base.expressions.select_op import SelectOp
-from jx_base.expressions.select_op import SelectOp
+from jx_base.expressions.select_op import SelectOp, SelectOne
 from jx_base.expressions.split_op import SplitOp
-from jx_base.expressions.sql_and_op import SqlAndOp
-from jx_base.expressions.sql_or_op import SqlOrOp
-from jx_base.expressions.sql_eq_op import SqlEqOp
 from jx_base.expressions.sql_alias_op import SqlAliasOp
-from jx_base.expressions.sql_inner_join_op import SqlInnerJoinOp
-from jx_base.expressions.sql_is_null_op import SqlIsNullOp
+from jx_base.expressions.sql_and_op import SqlAndOp
+from jx_base.expressions.sql_cast_op import SqlCastOp
+from jx_base.expressions.sql_concat_op import SqlConcatOp
+from jx_base.expressions.sql_eq_op import SqlEqOp
 from jx_base.expressions.sql_group_by_op import SqlGroupByOp
+from jx_base.expressions.sql_gt_op import SqlGtOp
+from jx_base.expressions.sql_gte_op import SqlGteOp
+from jx_base.expressions.sql_in_op import SqlInOp
+from jx_base.expressions.sql_inner_join_op import SqlInnerJoinOp
 from jx_base.expressions.sql_instr_op import SqlInstrOp
+from jx_base.expressions.sql_is_null_op import SqlIsNullOp
 from jx_base.expressions.sql_left_joins_op import SqlLeftJoinsOp
+from jx_base.expressions.sql_limit_op import SqlLimitOp
+from jx_base.expressions.sql_literal import SqlLiteral
+from jx_base.expressions.sql_lt_op import SqlLtOp
+from jx_base.expressions.sql_lte_op import SqlLteOp
+from jx_base.expressions.sql_or_op import SqlOrOp
+from jx_base.expressions.sql_order_by_op import SqlOrderByOp
 from jx_base.expressions.sql_origins_op import SqlOriginsOp
 from jx_base.expressions.sql_script import SqlScript
 from jx_base.expressions.sql_select_all_from_op import SqlSelectAllFromOp
+from jx_base.expressions.sql_select_op import SqlSelectOp
 from jx_base.expressions.sql_substr_op import SqlSubstrOp
+from jx_base.expressions.sql_variable import SqlVariable
+from jx_base.expressions.strict_add_op import StrictAddOp
+from jx_base.expressions.strict_boolean_op import StrictBooleanOp
+from jx_base.expressions.strict_eq_op import StrictEqOp
+from jx_base.expressions.strict_in_op import StrictInOp
+from jx_base.expressions.strict_index_of_op import StrictIndexOfOp
+from jx_base.expressions.strict_mul_op import StrictMulOp
+from jx_base.expressions.strict_multi_op import StrictMultiOp
+from jx_base.expressions.strict_not_op import StrictNotOp
+from jx_base.expressions.strict_starts_with_op import StrictStartsWithOp
+from jx_base.expressions.strict_substring_op import StrictSubstringOp
 from jx_base.expressions.sub_op import SubOp
 from jx_base.expressions.suffix_op import SuffixOp
 from jx_base.expressions.sum_op import SumOp
 from jx_base.expressions.tally_op import TallyOp
 from jx_base.expressions.to_array_op import ToArrayOp
 from jx_base.expressions.to_boolean_op import ToBooleanOp
+from jx_base.expressions.to_integer_op import ToIntegerOp
 from jx_base.expressions.to_number_op import ToNumberOp
 from jx_base.expressions.to_text_op import ToTextOp
 from jx_base.expressions.to_value_op import ToValueOp
@@ -131,11 +134,7 @@ from jx_base.expressions.union_op import UnionOp
 from jx_base.expressions.unix_op import UnixOp
 from jx_base.expressions.variable import Variable, IDENTITY
 from jx_base.expressions.when_op import WhenOp
-
-from jx_base.expressions.sql_order_by_op import SqlOrderByOp
-from jx_base.expressions.sql_group_by_op import SqlGroupByOp
-from jx_base.expressions.sql_limit_op import SqlLimitOp
-
+from mo_dots import set_default
 
 set_default(
     operators,
@@ -146,9 +145,9 @@ set_default(
         "and": AndOp,
         "array": ArrayOfOp,
         "avg": AvgOp,
-        "basic.add": BasicAddOp,
-        "basic.boolean": BasicBooleanOp,
-        "basic.mul": BasicMulOp,
+        "strict.add": StrictAddOp,
+        "strict.boolean": StrictBooleanOp,
+        "strict.mul": StrictMulOp,
         "between": BetweenOp,
         "cardinality": CardinalityOp,
         "case": CaseOp,
@@ -225,6 +224,7 @@ set_default(
         "split": SplitOp,
         "sql.and": SqlAndOp,
         "sql.alias": SqlAliasOp,
+        "sql.concat": SqlConcatOp,
         "sql.eq": SqlEqOp,
         "sql.group_by": SqlGroupByOp,
         "sql.inner_join": SqlInnerJoinOp,

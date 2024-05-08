@@ -60,11 +60,11 @@ def untyped_column(column_name):
     if SQL_KEY_PREFIX in column_name:
         path = split_field(column_name)
         if path[-1] in SQL_KEYS:
-            return join_field([p for p in path[:-1] if p != SQL_ARRAY_KEY]), path[-1][1:]
+            return join_field([p for p in path[:-1] if p != SQL_ARRAY_KEY]), sql_type_key_to_json_type.get(path[-1])
         else:
             return join_field([p for p in path if p != SQL_ARRAY_KEY]), None
     elif column_name in [GUID]:
-        return column_name, SQL_NUMBER_KEY
+        return column_name, SQL_STRING_KEY
     else:
         return column_name, None
 

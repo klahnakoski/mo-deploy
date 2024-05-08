@@ -149,8 +149,6 @@ class QueryOp(Expression):
         query = to_data(query)
 
         frum = query["from"]
-        # FIND THE TABLE IN from CLAUSE
-        base_name, _ = tail_field(frum)
         frum = container.container.get_table(frum)
         schema = frum.schema
 
@@ -189,7 +187,8 @@ class QueryOp(Expression):
         elif is_value:
             output.select = _normalize_selects(Null, [select or "."], query.format)
 
-        output.where = _normalize_where(query.where, lang)
+        output.select.frum = frum.schema
+        output.where = _normalize_where(query.where)
         output.window = [_normalize_window(w) for w in enlist(query.window)]
         output.sort = _normalize_sort(query.sort)
 
@@ -703,3 +702,4 @@ sort_direction = {
 
 
 export("jx_base.expressions.variable", QueryOp)
+export("jx_base.models.container", QueryOp)

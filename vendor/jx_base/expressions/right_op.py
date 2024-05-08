@@ -9,7 +9,7 @@
 #
 
 
-from jx_base.expressions.basic_substring_op import BasicSubstringOp
+from jx_base.expressions.strict_substring_op import StrictSubstringOp
 from jx_base.expressions.expression import Expression
 from jx_base.expressions.length_op import LengthOp
 from jx_base.expressions.literal import ZERO
@@ -37,6 +37,13 @@ class RightOp(Expression):
         else:
             return {"right": [self.value.__data__(), self.length.__data__()]}
 
+    def __call__(self, row, rownum=None, rows=None):
+        value = self.value(row, rownum, rows)
+        length = self.length(row, rownum, rows)
+        if value is None or length is None or length <= 0:
+            return None
+        return value[-length:]
+
     def vars(self):
         return self.value.vars() | self.length.vars()
 
@@ -53,5 +60,5 @@ class RightOp(Expression):
 
         return WhenOp(
             self.missing(lang),
-            **{"else": BasicSubstringOp(value, MaxOp(ZERO, MinOp(max_length, SubOp(max_length, length))), max_length,)}
+            **{"else": StrictSubstringOp(value, MaxOp(ZERO, MinOp(max_length, SubOp(max_length, length))), max_length,)}
         ).partial_eval(lang)

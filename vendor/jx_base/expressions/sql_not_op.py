@@ -19,11 +19,11 @@ from mo_json.types import JX_BOOLEAN
 class SqlNotOp(Expression):
     _jx_type = JX_BOOLEAN
 
-    def __init__(self, *term):
+    def __init__(self, term):
         """
         EMPTY STRINGS AND `0` ARE TREATED AS FALSE
         """
-        Expression.__init__(self, *term)
+        Expression.__init__(self, term)
         self.term = term
 
     def __data__(self):
@@ -46,7 +46,7 @@ class SqlNotOp(Expression):
     def invert(self, lang):
         return (
             WhenOp(
-                OrOp(self.term.missing(lang), BasicEqOp(self.term, ZERO)),
+                OrOp(self.term.missing(lang), StrictEqOp(self.term, ZERO)),
                 *{"then": self, "else": ToBoolean(self.term)}
             )
             .term

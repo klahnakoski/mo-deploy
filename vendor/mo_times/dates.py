@@ -14,8 +14,8 @@ from datetime import timezone
 from decimal import Decimal
 from time import time as unix_now
 
-from mo_dots import Null, null_types
-from mo_future import utcnow as _utcnow, utcfromtimestamp
+from mo_dots import Null, null_types, register_primitive
+from mo_future import utcnow as _utcnow, utcfromtimestamp, allocate_lock
 from mo_imports import delay_import
 from mo_math import is_integer
 
@@ -131,7 +131,7 @@ class Date(object):
         """
         :return: DAY-OF-WEEK  MONDAY=0, SUNDAY=6
         """
-        return int(self.unix / 60 / 60 / 24 / 7 + 5) % 7
+        return int(self.unix / 60 / 60 / 24 + 3) % 7
 
     @property
     def year(self):
@@ -194,11 +194,17 @@ class Date(object):
             yield v
             v = v + interval
 
+    def to(self, timezone):
+        """
+        CONVERT TO ANOTHER TIMEZONE
+        """
+        return DateAndTimezone(self, timezone)
+
     def __str__(self):
-        return str(unix2datetime(self.unix))
+        return self.format()
 
     def __repr__(self):
-        unix2datetime(self.unix).__repr__()
+        return f"Date(\"{self.format()}\")"
 
     def __sub__(self, other):
         if other == None:
@@ -291,6 +297,24 @@ class Date(object):
             elif v < output:
                 output = v
         return output
+
+
+register_primitive(Date)
+
+
+class DateAndTimezone:
+    def __init__(self, date, timezone):
+        self.date = date
+
+        if isinstance(timezone, str):
+            timezone = pytz.timezone(timezone)
+        self.timezone = timezone
+
+    def format(self, format="%Y-%m-%d %H:%M:%S"):
+        return self.date.datetime.astimezone(self.timezone).strftime(format)
+
+    def year(self):
+        return self.date.datetime.astimezone(self.timezone).year
 
 
 def parse(*args):
@@ -480,7 +504,7 @@ _deformats = [
     "%d|%B|%y|%H|%M|%S",
     "%Y|%m|%d|%H|%M|%S|%f",
 ]
-
+attempts_locker = allocate_lock()
 attempts = [*(_formatted(f) for f in _datetime_formats), *(_deformatted(f) for f in _deformats)]
 
 
@@ -511,16 +535,17 @@ def unicode2Date(value, format=None):
     if any(n in value.lower() for n in ["now", "today", "eod", "tomorrow"] + list(MILLI_VALUES.keys())):
         return parse_time_expression(value)
 
-    for f in attempts:
-        try:
-            result = f(value)
-            attempts.remove(f)
-            attempts.insert(0, f)
-            return result
-        except Exception as cause:
-            pass
-    else:
-        logger.error("Can not interpret {{value}} as a datetime", value=value)
+    with attempts_locker:
+        for f in attempts:
+            try:
+                result = f(value)
+                attempts.remove(f)
+                attempts.insert(0, f)
+                return result
+            except Exception:
+                pass
+        else:
+            logger.error("Can not interpret {{value}} as a datetime", value=value)
 
 
 def datetime2unix(value):

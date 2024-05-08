@@ -6,37 +6,29 @@
 #
 # Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
-
-
-
 from collections import OrderedDict
 from copy import deepcopy
-from datetime import date, datetime
-from decimal import Decimal
 
-from mo_future import (
-    binary_type,
-    generator_types,
-    get_function_arguments,
-    get_function_defaults,
-    text,
-    Mapping,
-)
+from mo_future import generator_types, get_function_arguments, get_function_defaults, Mapping
 from mo_imports import export, expect
 
-from mo_dots.datas import register_data, Data, _iadd
-from mo_dots.lists import FlatList
+from mo_dots.datas import Data, _iadd, dict_to_data
+from mo_dots.lists import FlatList, list_to_data
 from mo_dots.nones import NullType, Null
-from mo_dots.utils import CLASS, SLOT
+from mo_dots.utils import CLASS, SLOT, register_data, get_logger, is_primitive, is_known_data_type, is_null, \
+    register_type
 
-get_attr, set_attr, list_to_data, dict_to_data, to_data, from_data, set_default = expect(
-    "get_attr", "set_attr", "list_to_data", "dict_to_data", "to_data", "from_data", "set_default"
+get_attr, set_attr, to_data, from_data, set_default = expect(
+    "get_attr", "set_attr", "to_data", "from_data", "set_default"
 )
 
 _new = object.__new__
 _get = object.__getattribute__
 _set = object.__setattr__
-WRAPPED_CLASSES = set()
+
+
+_known_fields = {}  #  map from type to field names
+ignored_attributes = set(dir(object)) | set(dir(dict.values.__class__))
 
 
 class DataObject(Mapping):
@@ -81,22 +73,15 @@ class DataObject(Mapping):
         return object_to_data(output)
 
     def keys(self):
-        obj = _get(self, SLOT)
-        try:
-            return obj.__dict__.keys()
-        except Exception as e:
-            raise e
+        return get_keys(self)
 
     def items(self):
-        obj = _get(self, SLOT)
+        keys = self.keys()
         try:
-            for k, v in obj.__dict__.items():
-                yield k, object_to_data(v)
-        except Exception as e:
-            for k in dir(obj):
-                if k.startswith("__"):
-                    continue
-                yield k, object_to_data(getattr(obj, k, None))
+            for k in keys:
+                yield k, self[k]
+        except Exception as cause:
+            get_logger().error("problem with items", cause=cause)
 
     def __deepcopy__(self, memodict={}):
         output = {}
@@ -126,34 +111,66 @@ class DataObject(Mapping):
 register_data(DataObject)
 
 
+def get_keys(obj):
+    """
+    RETURN keys OF obj, AS IF DATA
+    """
+    while isinstance(obj, (DataObject, Data)):
+        obj = _get(obj, SLOT)
+
+    if isinstance(obj, dict):
+        return obj.keys()
+
+    try:
+        return obj.__dict__.keys()
+    except Exception:
+        pass
+
+    _type = _get(obj, CLASS)
+    keys = _known_fields.get(_type)
+    if keys is not None:
+        return keys
+
+    try:
+        keys = _known_fields[_type] = _type.__slots__
+        return keys
+    except Exception:
+        pass
+
+    keys = _known_fields[_type] = tuple(
+        k
+        for k in dir(_type)
+        if k not in ignored_attributes
+        and getattr(_type, k).__class__.__name__ in ["member_descriptor", "getset_descriptor"]
+    )
+    return keys
+
+
 def object_to_data(v):
     try:
-        if v == None:
+        if is_null(v):
             return Null
     except Exception:
         pass
 
-    type_ = _get(v, CLASS)
+    if is_primitive(v):
+        return v
 
-    if type_ is (dict, OrderedDict):
+    _class = _get(v, CLASS)
+    if _class in (dict, OrderedDict):
         m = _new(Data)
         _set(m, SLOT, v)
         return m
-    elif type_ is tuple:
+    elif _class in (tuple, list):
         return list_to_data(v)
-    elif type_ is list:
-        return list_to_data(v)
-    elif type_ in (Data, DataObject, FlatList, NullType):
+    elif _class in (Data, DataObject, FlatList, NullType):
         return v
-    elif type_ in (text, binary_type, int, float, Decimal, datetime, date):
-        return v
-    elif type_ in generator_types:
+    elif _class in generator_types:
         return (to_data(vv) for vv in v)
-
-    return DataObject(v)
-
-
-datawrap = object_to_data
+    elif is_known_data_type(_class):
+        return DataObject(v)
+    else:
+        return v
 
 
 class DataClass(object):
@@ -162,10 +179,10 @@ class DataClass(object):
     ALLOW CONSTRUCTOR TO ACCEPT @override
     """
 
-    def __init__(self, class_):
-        WRAPPED_CLASSES.add(class_)
-        self.class_ = class_
-        self.constructor = class_.__init__
+    def __init__(self, _class):
+        register_type(_class)
+        self.class_ = _class
+        self.constructor = _class.__init__
 
     def __call__(self, *args, **kwargs):
         settings = to_data(kwargs).settings
@@ -187,7 +204,7 @@ def params_pack(params, *args):
     settings = {}
     for a in args:
         for k, v in a.items():
-            k = text(k)
+            k = str(k)
             if k in settings:
                 continue
             settings[k] = v
@@ -196,5 +213,7 @@ def params_pack(params, *args):
     return output
 
 
-export("mo_dots.lists", "object_to_data", object_to_data)
-export("mo_dots.lists", "datawrap", object_to_data)
+export("mo_dots.lists", object_to_data)
+export("mo_dots.datas", object_to_data)
+export("mo_dots.datas", DataObject)
+export("mo_dots.datas", get_keys)
