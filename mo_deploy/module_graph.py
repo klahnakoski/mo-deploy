@@ -14,7 +14,7 @@ import mo_math
 from mo_deploy.deploy_module import DeployModule
 from mo_deploy.module import Module
 from mo_deploy.utils import Requirement, TODAY
-from mo_dots import listwrap
+from mo_dots import listwrap, exists
 from mo_http import http
 from mo_logs import logger
 from mo_logs.exceptions import Except
@@ -121,7 +121,10 @@ class ModuleGraph(object):
         # ASSIGN next_version IN CASE IT IS REQUIRED
         # IF b DEPENDS ON a THEN version(b)>=version(a)
         # next_version(a) > version(a)
-        max_minor_version = max(int(v.minor) for n, v in curr_versions.items() if n not in no_upgrade_needed and v != None)
+        max_minor_version = max(
+            (int(v.minor) for n, v in curr_versions.items() if n not in no_upgrade_needed and exists(v)),
+            default=0
+        )
         self.next_minor_version = max_minor_version + 1
 
         version_bump = {t.name: t for t in self.todo}

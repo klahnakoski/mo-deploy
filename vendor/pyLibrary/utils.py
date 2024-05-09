@@ -12,7 +12,7 @@ import datetime
 import re
 
 from jx_python.jx import chunk
-from mo_dots import DataObject, Null, from_data
+from mo_dots import DataObject, Null, from_data, is_missing
 from mo_future import zip_longest
 from mo_logs import Log
 
@@ -100,6 +100,8 @@ class Version(object):
         return not (self == other) and not (self > other)
 
     def __ne__(self, other):
+        if is_missing(other):
+            return False
         other = Version(other)
         return self.version != other.version
 
@@ -107,7 +109,7 @@ class Version(object):
         return "".join(p + str(v) for p, v in zip(self.prefix, self.version))
 
     def __repr__(self):
-        return f"Version({self}"
+        return f"Version(\"{self}\")"
 
     def __hash__(self):
         return self.__str__().__hash__()
