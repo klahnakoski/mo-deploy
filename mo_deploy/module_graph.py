@@ -176,7 +176,7 @@ class ModuleGraph(object):
                     TODAY,
                 ))
 
-                if module.name not in is_upgrading:
+                if managed_req and module.name not in is_upgrading:
                     if curr_version < req_version:
                         is_upgrading.add(module.name)
                         self._next_version[req_name] = req_new_version
@@ -292,4 +292,4 @@ class ModuleGraph(object):
                 if module in candidates
             ]
         except Exception as cause:
-            logger.error("not expected", cuase=cause)
+            logger.error("not expected", cause=cause)

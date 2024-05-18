@@ -115,7 +115,16 @@ class Module(object):
             self.local([self.git, "checkout", "-b", self.master_branch])
             logger.error("Can not deploy {{module}}", module=self.name, cause=cause)
         finally:
-            self.local([self.git, "checkout", self.dev_branch])
+            while True:
+                try:
+                    self.local([self.git, "checkout", "-f", self.dev_branch])
+                    break
+                except Exception as cause:
+                    if "unable to unlink old" in cause:
+                        continue
+                    if "Another git process seems to be running in this repository" in cause:
+                        continue
+                    raise cause
 
     def setup(self):
         self.local([self.git, "checkout", self.dev_branch])
@@ -131,7 +140,7 @@ class Module(object):
             File.copy("~/code/mo-dots/.github", self.directory/".github")
             # make coverage.rc file
             coverage_config = File("~/code/mo-dots/packaging/coverage.ini").read_ini()
-            coverage_config.run.source = "./"+self.name.replace("-", "_")
+            coverage_config.run.source = "./"+self.directory.replace("-", "_")
             (self.directory/"packaging"/"coverage.ini").write_ini(coverage_config)
             # update readme badge
             readme = self.directory / "README.md"
@@ -499,6 +508,12 @@ class Module(object):
                         break
                     except Exception as cause:
                         if any(
+                            "because these package versions have conflicting dependencies" in e
+                            for e in cause.cause.params.stderr
+                        ):
+                            break  # NO NEED TO TRY AGAIN
+
+                        if any(
                             'pip\\_vendor\\packaging\\version.py", line 264, in __init__' in e
                             for e in cause.cause.params.stderr
                         ):
@@ -640,12 +655,17 @@ class Module(object):
         lookup_old_requires = {r.name: r for r in current_requires}
 
         req = self.directory / "packaging" / "requirements.txt"
-        output = to_data([
-            r & lookup_old_requires.get(r.name) for line in req.read_lines() if line for r in [parse_req(line)] if r
-        ])
+        try:
+            output = to_data([
+                r & lookup_old_requires.get(r.name) for line in req.read_lines() if line for r in [parse_req(line)] if r
+            ])
+        except Exception as cause:
+            logger.info("old requires: {requires}", requires=current_requires)
+            logger.info("new requires: {requires}", requires=req.read_lines())
+            logger.error("found problem in {module}", module=self.name, cause=cause)
 
         if any(r.name.startswith(("mo_", "jx_")) for r in output):
-            logger.error("found problem in {{module}}", module=self.name)
+            logger.error("found problem in {module}", module=self.name)
         return output
 
     def get_next_requirements(self, current_requires):

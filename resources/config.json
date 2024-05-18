@@ -42,20 +42,20 @@
         "c:/users/kyle/code/jx-python",
         "c:/users/kyle/code/jx-sqlite",
         "c:/users/kyle/code/mo-parsing",
-        {
-            "name": "mo-sql-parsing9",
-            "deploy_branch":"master9",
-            "dev_branch":"dev9",
-            "svn_branch": null,
-            "location": "c:/users/kyle/code/mo-sql-parsing",
-        },
-        {
-            "name": "mo-sql-parsing10",
-            "deploy_branch":"master",
-            "dev_branch":"dev",
-            "svn_branch": null,
-            "location": "c:/users/kyle/code/mo-sql-parsing",
-        },
+//        {
+//            "name": "mo-sql-parsing9",
+//            "deploy_branch":"master9",
+//            "dev_branch":"dev9",
+//            "svn_branch": null,
+//            "location": "c:/users/kyle/code/mo-sql-parsing",
+//        },
+//        {
+//            "name": "mo-sql-parsing10",
+//            "deploy_branch":"master",
+//            "dev_branch":"dev",
+//            "svn_branch": null,
+//            "location": "c:/users/kyle/code/mo-sql-parsing",
+//        },
         "c:/users/kyle/code/terraform-parser",
 
         "c:/users/kyle/code/mo-black"
@@ -66,11 +66,12 @@
 //        "c:/users/kyle/code/mo-parquet"
     ],
     "deploy": [
-//        "mo-testing"
+        "mo-testing"
 //        "mo-testing", "mo-threads", "jx-python", "mo-logs"
 //        "mo-parsing", "mo-json-config", "mo-threads",
 //        "mo-testing", "mo-threads", "mo-files", "mo-streams"  // mo-sql-parsing testing
-        "mo-sql-parsing9", "mo-sql-parsing10",
+//        "mo-sql-parsing9", "mo-sql-parsing10",
+//        "mo-parsing"
 //        "mo-json-config", "mo-threads", "mo-streams"
 //        "jx-python"
 //        "jx-sqlite", "mo-streams"
