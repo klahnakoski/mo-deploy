@@ -176,7 +176,7 @@ class Process(object):
                 process=self.name,
                 stderr=list(self.stderr),
             )
-        if self.returncode != 0:
+        if raise_on_error and self.returncode != 0:
             on_error(
                 "FAILED: {process|quote}\n\tcommand={command}\n\treturncode={code}\n\terror={stderr}",
                 process=self.name,

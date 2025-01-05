@@ -3,6 +3,7 @@
         "git": "C:\\Program Files\\Git\\cmd\\git.exe",
         "svn": "C:\\Program Files\\VisualSVN Server\\bin\\svn.exe",
         "python": {
+            "3..13":"C:\\Python313\\python.exe",
             "3..12":"C:\\Python312\\python.exe",
             "3..11":"C:\\Python311\\python.exe",
             "3..10":"C:\\Python310\\python.exe",
@@ -33,7 +34,7 @@
         "c:/users/kyle/code/mo-json-config",
         "c:/users/kyle/code/pyLibrary",
 
-        "c:/users/kyle/code/jx-elasticsearch",
+        // "c:/users/kyle/code/jx-elasticsearch",
         "c:/users/kyle/code/jx-bigquery",
         "c:/users/kyle/code/jx-mysql",
         "c:/users/kyle/code/mo-sql",
@@ -42,20 +43,27 @@
         "c:/users/kyle/code/jx-python",
         "c:/users/kyle/code/jx-sqlite",
         "c:/users/kyle/code/mo-parsing",
-//        {
-//            "name": "mo-sql-parsing9",
-//            "deploy_branch":"master9",
-//            "dev_branch":"dev9",
-//            "svn_branch": null,
-//            "location": "c:/users/kyle/code/mo-sql-parsing",
-//        },
-//        {
-//            "name": "mo-sql-parsing10",
-//            "deploy_branch":"master",
-//            "dev_branch":"dev",
-//            "svn_branch": null,
-//            "location": "c:/users/kyle/code/mo-sql-parsing",
-//        },
+        {
+            "name": "mo-sql-parsing9",
+            "deploy_branch":"master9",
+            "dev_branch":"dev9",
+            "svn_branch": null,
+            "location": "c:/users/kyle/code/mo-sql-parsing",
+        },
+        {
+            "name": "mo-sql-parsing10",
+            "deploy_branch":"master",
+            "dev_branch":"dev10",
+            "svn_branch": null,
+            "location": "c:/users/kyle/code/mo-sql-parsing",
+        },
+        {
+            "name": "mo-sql-parsing11",
+            "deploy_branch":"master",
+            "dev_branch":"dev",
+            "svn_branch": null,
+            "location": "c:/users/kyle/code/mo-sql-parsing",
+        },
         "c:/users/kyle/code/terraform-parser",
 
         "c:/users/kyle/code/mo-black"
@@ -70,11 +78,13 @@
 //        "mo-testing", "mo-threads", "jx-python", "mo-logs"
 //        "mo-parsing", "mo-json-config", "mo-threads",
 //        "mo-testing", "mo-threads", "mo-files", "mo-streams"  // mo-sql-parsing testing
-//        "mo-sql-parsing9", "mo-sql-parsing10",
+//        "mo-sql-parsing9",
+//        "mo-sql-parsing10",
+//        "mo-sql-parsing11",
 //        "mo-parsing"
-        "mo-json-config", "mo-threads", "mo-streams"
+//        "mo-json-config", "mo-threads", "mo-streams"
 //        "jx-python"
-//        "jx-sqlite", "mo-streams"
+        "jx-sqlite", "mo-streams"
 //        "mo-black",
 //        "jx-mysql",
 //        "pyLibrary"
