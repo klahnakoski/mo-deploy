@@ -519,7 +519,7 @@ class Module(object):
                                 "--upgrade",
                                 str(req),
                             ],
-                            cwd=temp,
+                            cwd=temp,  # we use the temp dir because some packages make files in current dir
                             debug=True,
                         )
                     except Exception as cause:
