@@ -1,104 +1,107 @@
 {
-    "general": {
-        "git": "C:\\Program Files\\Git\\cmd\\git.exe",
-        "svn": "C:\\Program Files\\VisualSVN Server\\bin\\svn.exe",
-        "python": {
-            "3..13":"C:\\Python313\\python.exe",
-            "3..12":"C:\\Python312\\python.exe",
-            "3..11":"C:\\Python311\\python.exe",
-            "3..10":"C:\\Python310\\python.exe",
-            "3..9":"C:\\Python39\\python.exe",
-            "3..8":"C:\\Python38\\python.exe"
-        },
-        "twine": "C:\\Python39\\Scripts\\twine.exe",
-        "python_requires": null,
-        "ignore_svn": "vendor/"
+  "general": {
+    "git": "C:\\Program Files\\Git\\cmd\\git.exe",
+    "svn": "C:\\Program Files\\VisualSVN Server\\bin\\svn.exe",
+    "python": {
+      "3..13": "C:\\Python313\\python.exe",
+      "3..12": "C:\\Python312\\python.exe",
+      "3..11": "C:\\Python311\\python.exe",
+      "3..10": "C:\\Python310\\python.exe",
+      "3..9": "C:\\Python39\\python.exe",
+      "3..8": "C:\\Python38\\python.exe"
     },
-    "managed": [
-
-        "c:/users/kyle/code/mo-imports",
-        "c:/users/kyle/code/mo-future",
-        "c:/users/kyle/code/mo-dots",
-        "c:/users/kyle/code/mo-streams",
-        "c:/users/kyle/code/mo-kwargs",
-        "c:/users/kyle/code/mo-logs",
-        "c:/users/kyle/code/mo-files",
-        "c:/users/kyle/code/mo-http",
-
-        "c:/users/kyle/code/mo-threads",
-        "c:/users/kyle/code/mo-math",
-        "c:/users/kyle/code/mo-times",
-        "c:/users/kyle/code/mo-json",
-        "c:/users/kyle/code/mo-collections",
-        "c:/users/kyle/code/mo-testing",
-        "c:/users/kyle/code/mo-json-config",
-        "c:/users/kyle/code/pyLibrary",
-
-        // "c:/users/kyle/code/jx-elasticsearch",
-        "c:/users/kyle/code/jx-bigquery",
-        "c:/users/kyle/code/jx-mysql",
-        "c:/users/kyle/code/mo-sql",
-        "c:/users/kyle/code/mo-sqlite",
-
-        "c:/users/kyle/code/jx-python",
-        "c:/users/kyle/code/jx-sqlite",
-        "c:/users/kyle/code/mo-parsing",
-        {
-            "name": "mo-sql-parsing9",
-            "deploy_branch":"master9",
-            "dev_branch":"dev9",
-            "svn_branch": null,
-            "location": "c:/users/kyle/code/mo-sql-parsing",
-        },
-        {
-            "name": "mo-sql-parsing10",
-            "deploy_branch":"master",
-            "dev_branch":"dev10",
-            "svn_branch": null,
-            "location": "c:/users/kyle/code/mo-sql-parsing",
-        },
-        {
-            "name": "mo-sql-parsing11",
-            "deploy_branch":"master",
-            "dev_branch":"dev",
-            "svn_branch": null,
-            "location": "c:/users/kyle/code/mo-sql-parsing",
-        },
-        "c:/users/kyle/code/terraform-parser",
-
-        "c:/users/kyle/code/mo-black"
-//        "c:/users/kyle/code/mo-fabric",
-//        "c:/users/kyle/code/mo-hg",
-//        "c:/users/kyle/code/measure-noise",
-//        "c:/users/kyle/code/mo-deploy",
-//        "c:/users/kyle/code/mo-parquet"
-    ],
-    "deploy": [
-//        "mo-testing"
-//        "mo-testing", "mo-threads", "jx-python", "mo-logs"
-//        "mo-parsing", "mo-json-config", "mo-threads",
-//        "mo-testing", "mo-threads", "mo-files", "mo-streams"  // mo-sql-parsing testing
-//        "mo-sql-parsing9",
-//        "mo-sql-parsing10",
-        "mo-sql-parsing11",
-//        "mo-parsing"
-//        "mo-json-config", "mo-threads", "mo-streams"
-//        "jx-python"
-//        "jx-sqlite", "mo-streams"
-//        "mo-black",
-//        "jx-mysql",
-//        "pyLibrary"
-//        "terraform-parser", "mo-streams"
-    ],
-    "constants": {
-        "mo_http.http.default_headers": {
-            "Referer": "https://github.com/klahnakoski/mo-deploy"
-        },
-        "mo_threads.commands.DEBUG": false,
-        "mo_threads.processes.DEBUG": false
+    "twine": "C:\\Python39\\Scripts\\twine.exe",
+    "python_requires": null,
+    "ignore_svn": "vendor/"
+  },
+  "managed": [
+    "c:/users/kyle/code/mo-imports",
+    "c:/users/kyle/code/mo-future",
+    "c:/users/kyle/code/mo-dots",
+    "c:/users/kyle/code/mo-streams",
+    "c:/users/kyle/code/mo-kwargs",
+    "c:/users/kyle/code/mo-logs",
+    "c:/users/kyle/code/mo-files",
+    "c:/users/kyle/code/mo-http",
+    "c:/users/kyle/code/mo-threads",
+    "c:/users/kyle/code/mo-math",
+    "c:/users/kyle/code/mo-times",
+    "c:/users/kyle/code/mo-json",
+    "c:/users/kyle/code/mo-collections",
+    "c:/users/kyle/code/mo-testing",
+    "c:/users/kyle/code/mo-json-config",
+    "c:/users/kyle/code/pyLibrary",
+    // "c:/users/kyle/code/jx-elasticsearch",
+    "c:/users/kyle/code/jx-bigquery",
+    "c:/users/kyle/code/jx-mysql",
+    "c:/users/kyle/code/mo-sql",
+    "c:/users/kyle/code/mo-sqlite",
+    "c:/users/kyle/code/jx-python",
+    "c:/users/kyle/code/jx-sqlite",
+    "c:/users/kyle/code/mo-parsing",
+    {
+      "name": "mo-sql-parsing9",
+      "deploy_branch": "master9",
+      "dev_branch": "dev9",
+      "svn_branch": null,
+      "location": "c:/users/kyle/code/mo-sql-parsing"
     },
-    "debug": {
-        "trace": true,
-        "logs": [{"log_type": "console"}, {"log_type":"file", "file": "logs/deploy.log"}]
+    {
+      "name": "mo-sql-parsing10",
+      "deploy_branch": "master",
+      "dev_branch": "dev10",
+      "svn_branch": null,
+      "location": "c:/users/kyle/code/mo-sql-parsing"
     },
+    {
+      "name": "mo-sql-parsing11",
+      "deploy_branch": "master",
+      "dev_branch": "dev",
+      "svn_branch": null,
+      "location": "c:/users/kyle/code/mo-sql-parsing"
+    },
+    "c:/users/kyle/code/terraform-parser",
+    "c:/users/kyle/code/mo-black"
+    //        "c:/users/kyle/code/mo-fabric",
+    //        "c:/users/kyle/code/mo-hg",
+    //        "c:/users/kyle/code/measure-noise",
+    //        "c:/users/kyle/code/mo-deploy",
+    //        "c:/users/kyle/code/mo-parquet"
+  ],
+  "deploy": [
+    //        "mo-testing"
+    //        "mo-testing", "mo-threads", "jx-python", "mo-logs"
+    //        "mo-parsing", "mo-json-config", "mo-threads",
+    //        "mo-testing", "mo-threads", "mo-files", "mo-streams"  // mo-sql-parsing testing
+    //        "mo-sql-parsing9",
+    //        "mo-sql-parsing10",
+            "mo-sql-parsing11"
+    //        "mo-parsing"
+    //        "mo-json-config", "mo-threads", "mo-streams"
+    //        "jx-python"
+    //        "jx-sqlite", "mo-streams"
+    //        "mo-black",
+    //        "jx-mysql",
+    //        "pyLibrary"
+    //        "terraform-parser", "mo-streams"
+  ],
+  "constants": {
+    "mo_http.http.default_headers": {
+      "Referer": "https://github.com/klahnakoski/mo-deploy"
+    },
+    "mo_threads.commands.DEBUG": false,
+    "mo_threads.processes.DEBUG": false
+  },
+  "debug": {
+    "trace": true,
+    "logs": [
+      {
+        "log_type": "console"
+      },
+      {
+        "log_type": "file",
+        "file": "logs/deploy.log"
+      }
+    ]
+  }
 }
