@@ -80,11 +80,11 @@
 //        "mo-testing", "mo-threads", "mo-files", "mo-streams"  // mo-sql-parsing testing
 //        "mo-sql-parsing9",
 //        "mo-sql-parsing10",
-//        "mo-sql-parsing11",
+        "mo-sql-parsing11",
 //        "mo-parsing"
 //        "mo-json-config", "mo-threads", "mo-streams"
 //        "jx-python"
-        "jx-sqlite", "mo-streams"
+//        "jx-sqlite", "mo-streams"
 //        "mo-black",
 //        "jx-mysql",
 //        "pyLibrary"

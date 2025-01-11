@@ -6,24 +6,20 @@
 #
 # Author: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
-import mo_json_config
-
-from mo_future import Mapping
 
 from mo_deploy.utils import Requirement, parse_req
-from mo_dots import coalesce, listwrap, to_data, exists, from_data
+from mo_dots import coalesce, listwrap, to_data, exists
 from mo_dots.lists import last
 from mo_files import File, TempDirectory, URL
+from mo_future import Mapping
 from mo_future import is_binary, is_text, sort_using_key, text, first
 from mo_http import http
 from mo_json import value2json, json2value
-from mo_json_config import ini2value
 from mo_logs import Except, logger, strings
 from mo_math import randoms
-from mo_threads import Thread, Till, Lock, lock
+from mo_threads import Till, Lock, Thread
 from mo_threads.commands import Command
 from mo_times import Timer, Date
-from mo_times.dates import ISO8601
 from pyLibrary.meta import cache
 from pyLibrary.utils import Version
 
@@ -495,11 +491,23 @@ class Module(object):
 
             # INSTALL TEST RESOURCES
             logger.info("install testing requirements")
-            if (self.directory / "tests" / "requirements.txt").exists:
-                # TRY THE lock FILE, FOR QUICKER INSTALL.  NOT NEEDED
-                self.local([pip, "install", "--no-deps", "-r", "tests/requirements.lock"], raise_on_error=False)
+            install_test_problem = None
 
-                while True:
+            # TRY THE lock FILE, FOR QUICKER INSTALL.
+            req_lock_file = self.directory / "tests" / "requirements.lock"
+            if req_lock_file.exists:
+                try:
+                    self.local([pip, "install", "--no-deps", "-r", "tests/requirements.lock"], debug=True, raise_on_error=True)
+                except Exception as cause:
+                    install_test_problem = cause
+
+            # TRY UPGRADE EACH IN THE requirements.txt
+            req_file = self.directory / "tests" / "requirements.txt"
+            if req_file.exists:
+                for line in req_file.read_lines():
+                    req = parse_req(line)
+                    if not req:
+                        continue
                     try:
                         self.local(
                             [
@@ -509,28 +517,19 @@ class Module(object):
                                 "pip",
                                 "install",
                                 "--upgrade",
-                                "-r",
-                                "tests/requirements.txt",
+                                str(req),
                             ],
                             debug=True,
                         )
-                        _, test_reqs, _ = self.local([pip, "freeze"], env={"PYTHONPATH": "."})
-                        break
                     except Exception as cause:
-                        if any(
-                            "because these package versions have conflicting dependencies" in e
-                            for e in cause.cause.params.stderr
-                        ):
-                            break  # NO NEED TO TRY AGAIN
+                        if install_test_problem:
+                            logger.error("Can not install test requirements", cause=cause)
 
-                        if any(
-                            'pip\\_vendor\\packaging\\version.py", line 264, in __init__' in e
-                            for e in cause.cause.params.stderr
-                        ):
-                            # Happens occasionally, so retry
-                            logger.warning("Problem with install", cause=cause.cause.params.stderr)
-                        else:
-                            raise cause
+                install_test_problem = None
+                _, test_reqs, _ = self.local([pip, "freeze"], env={"PYTHONPATH": "."})
+
+            if install_test_problem:
+                logger.error("Can not install test requirements", cause=install_test_problem)
 
             # INSTALL SELF AGAIN TO ENSURE CORRECT VERSIONS ARE USED (EVEN IF CONFLICT WITH TEST RESOURCES)
             self.install_self(pip)
