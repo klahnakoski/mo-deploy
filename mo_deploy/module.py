@@ -519,6 +519,7 @@ class Module(object):
                                 "--upgrade",
                                 str(req),
                             ],
+                            cwd=temp,
                             debug=True,
                         )
                     except Exception as cause:
